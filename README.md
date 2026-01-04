@@ -41,17 +41,9 @@ The setup will:
 
 **Important:** WSL2 is for testing only. For production, use Raspberry Pi or native Debian.
 ```bash
-# Install git
-sudo apt update && sudo apt install -y git
-
-# Clone repository
-cd ~
-git clone https://github.com/BMogetta/test-homelab.git
-cd test-homelab
-
-# Apply WSL2 fixes FIRST
-chmod +x scripts/wsl2-fixes.sh
-./scripts/wsl2-fixes.sh
+sudo apt update && sudo apt install -y git && \
+cd ~ && git clone https://github.com/BMogetta/test-homelab.git && \
+cd test-homelab && chmod +x scripts/wsl2-fixes.sh && ./scripts/wsl2-fixes.sh
 
 # Exit and restart WSL
 exit
@@ -64,8 +56,7 @@ wsl -d Debian
 ```
 ```bash
 # Now run setup
-cd ~/test-homelab
-./setup.sh
+cd ~/test-homelab && ./setup.sh
 ```
 
 **WSL2 Limitations:** See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for issues.
