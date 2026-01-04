@@ -56,27 +56,25 @@ create_env_file() {
         return
     fi
     
-    log_info "Creating .env file..."
+    # If .env doesn't exist, something is wrong
+    log_error ".env file not found at $HOMELAB_DIR/.env"
     
-    cat > "$HOMELAB_DIR/.env" << 'EOF'
-# Timezone
-TZ=America/Argentina/Buenos_Aires
-
-# Pi-hole
-PIHOLE_WEBPASSWORD=changeme123
-
-# UniFi Controller
-MONGO_USER=unifi
-MONGO_PASS=changeme123
-MONGO_DBNAME=unifi
-
-# User/Group IDs (run 'id' to get yours)
-PUID=1000
-PGID=1000
-EOF
+    if [ -f "$HOMELAB_DIR/.env.age" ]; then
+        log_error ".env.age exists but was not decrypted"
+        log_info "Please decrypt it first:"
+        echo "  cd ~/test-homelab"
+        echo "  ./scripts/decrypt-env.sh"
+        echo "  Then run setup again"
+    else
+        log_error "No .env or .env.age found"
+        log_info "This repository requires an encrypted .env.age"
+        log_info "If this is a fresh repository setup, you need to:"
+        echo "  1. Create .env manually with your credentials"
+        echo "  2. Encrypt it: ./scripts/encrypt-env.sh"
+        echo "  3. Commit .env.age to repository"
+    fi
     
-    log_info "✓ Created .env file"
-    log_warn "IMPORTANT: Edit $HOMELAB_DIR/.env and change default passwords!"
+    exit 1
 }
 
 # Create compose file
@@ -84,6 +82,18 @@ create_compose_file() {
     if [ -f "$HOMELAB_DIR/compose.yml" ]; then
         log_warn "compose.yml already exists, skipping creation"
         return
+    fi
+
+    # Detect WSL2 and adjust ports
+    WSL2_DETECTED=false
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        WSL2_DETECTED=true
+        log_warn "WSL2 detected - using alternate ports for Pi-hole"
+        PIHOLE_DNS_PORT="5353"
+        PIHOLE_WEB_PORT="8081"
+    else
+        PIHOLE_DNS_PORT="53"
+        PIHOLE_WEB_PORT="8080"
     fi
     
     log_info "Creating compose.yml..."
@@ -113,9 +123,9 @@ services:
     container_name: pihole
     restart: unless-stopped
     ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-      - "8080:80/tcp"
+      - "$PIHOLE_DNS_PORT:53/tcp"
+      - "$PIHOLE_DNS_PORT:53/udp"
+      - "$PIHOLE_WEB_PORT:80/tcp"
     environment:
       - TZ=${TZ}
       - WEBPASSWORD=${PIHOLE_WEBPASSWORD}
@@ -229,6 +239,12 @@ services:
     environment:
       - TZ=${TZ}
 EOF
+    
+    if [ "$WSL2_DETECTED" = true ]; then
+        log_warn "Pi-hole configured for WSL2:"
+        log_warn "  - DNS: localhost:$PIHOLE_DNS_PORT"
+        log_warn "  - Web: http://localhost:$PIHOLE_WEB_PORT/admin"
+    fi
     
     log_info "✓ Created compose.yml"
 }

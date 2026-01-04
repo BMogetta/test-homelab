@@ -126,29 +126,39 @@ main() {
     done
     
     # Check if encrypted .env exists and offer to decrypt
-    if [ -f "$HOME/homelab/.env.age" ] && [ ! -f "$HOME/homelab/.env" ]; then
-        echo ""
-        log_info "=========================================="
-        log_info "Encrypted environment file detected"
-        log_info "=========================================="
-        echo ""
-        log_info "Found: ~/homelab/.env.age"
-        echo ""
-        read -p "Would you like to decrypt it now? (Y/n): " decrypt_response
+    if [ -f "$SCRIPT_DIR/.env.age" ]; then
+        if [ ! -f "$HOME/homelab/.env" ]; then
+            echo ""
+            log_info "=========================================="
+            log_info "Encrypted environment file detected"
+            log_info "=========================================="
+            echo ""
+            log_info "Found: .env.age"
+            log_warn "Decryption is REQUIRED to continue"
+            echo ""
         
-        if [[ ! "$decrypt_response" =~ ^[Nn]$ ]]; then
-            decrypt_script="${SCRIPT_DIR}/scripts/decrypt-env.sh"
+	    decrypt_script="${SCRIPT_DIR}/scripts/decrypt-env.sh"
             if [ -f "$decrypt_script" ]; then
                 chmod +x "$decrypt_script"
                 bash "$decrypt_script"
+            
+                # Verify decryption succeeded
+                if [ ! -f "$HOME/homelab/.env" ]; then
+                    log_error "Decryption failed or was cancelled"
+                    log_error "Cannot continue without .env"
+                    exit 1
+                fi
             else
-                log_warn "Decrypt script not found"
-                log_info "Run manually: ./scripts/decrypt-env.sh"
+                log_error "Decrypt script not found"
+                exit 1
             fi
         else
-            log_info "Skipping decryption"
-            log_info "You can decrypt later with: ./scripts/decrypt-env.sh"
+            log_info "✓ .env already exists"
         fi
+    elif [ ! -f "$HOME/homelab/.env" ]; then
+        log_error "No .env.age or .env found"
+        log_error "This repository requires encrypted credentials"
+        exit 1
     fi
     
     # Check if optional encrypted configs exist and offer to restore

@@ -108,38 +108,6 @@ configure_wsl_conf() {
     fi
 }
 
-# Fix 4: Adjust Pi-hole ports for WSL2 (optional)
-adjust_pihole_ports() {
-    log_warn "Pi-hole Port Configuration"
-    echo ""
-    echo "In WSL2, port 53 might conflict with Windows DNS services."
-    echo "You have two options:"
-    echo ""
-    echo "  1. Keep default ports (53, 8080) - Recommended for testing compatibility"
-    echo "  2. Change to alternate ports (5353, 8081) - If you have conflicts"
-    echo ""
-    read -p "Change Pi-hole ports? (y/N): " response
-    
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-        if [ -f ~/homelab/compose.yml ]; then
-            log_info "Backing up compose.yml..."
-            cp ~/homelab/compose.yml ~/homelab/compose.yml.backup
-            
-            log_info "Updating Pi-hole ports..."
-            sed -i 's/"53:53\/tcp"/"5353:53\/tcp"/' ~/homelab/compose.yml
-            sed -i 's/"53:53\/udp"/"5353:53\/udp"/' ~/homelab/compose.yml
-            sed -i 's/"8080:80\/tcp"/"8081:80\/tcp"/' ~/homelab/compose.yml
-            
-            log_info "✓ Pi-hole ports changed to 5353 (DNS) and 8081 (Web)"
-            log_info "Access Pi-hole at: http://localhost:8081/admin"
-        else
-            log_warn "~/homelab/compose.yml not found, skipping"
-        fi
-    else
-        log_info "Keeping default Pi-hole ports"
-    fi
-}
-
 # Display summary
 display_summary() {
     echo ""
