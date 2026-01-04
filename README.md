@@ -1,291 +1,162 @@
-# Homelab Setup - Debian 12 + Podman
+# Test Homelab - Debian 12 + Podman
 
-Complete setup for self-hosted services using Debian 12 and Podman.
+Complete self-hosted homelab setup using Debian 12 and Podman.
 
 ## Services Included
 
-- UniFi Network Application
-- Pi-hole (DNS Ad-blocker)
-- Nginx Proxy Manager
-- Uptime Kuma
-- Home Assistant
-- Stirling PDF
-- Cockpit (Web UI for system management)
-
-## Prerequisites
-
-- Debian 12 (Bookworm)
-- Systemd enabled
-- Internet connection
-- Sudo privileges
-
-**For repository management:**
-- Git configured with your email and name
-- The setup script will prompt you to configure git if needed
+- **UniFi Network Application** - Network controller
+- **Pi-hole** - DNS ad-blocker
+- **Nginx Proxy Manager** - Reverse proxy with SSL
+- **Uptime Kuma** - Uptime monitoring
+- **Home Assistant** - Home automation
+- **Stirling PDF** - PDF tools
+- **Homarr** - Modern dashboard
+- **Dozzle** - Container logs and monitoring
+- **Cockpit** - System management web UI
 
 ## Quick Start
 
+### For Debian / Raspberry Pi
 ```bash
-# Clone this repository
-git clone https://github.com/YOUR_USERNAME/homelab-setup.git
-cd homelab-setup
+# Install git
+sudo apt update && sudo apt install -y git
 
-# Run the setup script (will prompt for git config if needed)
+# Clone repository
+cd ~
+git clone https://github.com/BMogetta/test-homelab.git
+cd test-homelab
+
+# Run setup
 chmod +x setup.sh
 ./setup.sh
 ```
 
-## First Time Setup (For Repository Owners)
+The setup will:
+- Install all dependencies (Podman, Cockpit, etc.)
+- Configure git (prompts for email/name)
+- Detect and decrypt `.env.age` (prompts for passphrase)
+- Deploy all services automatically
 
-If you're setting up this repository for the first time:
+### For WSL2 (Testing Only)
 
-1. **Configure Git** (if not already done):
+**Important:** WSL2 requires additional configuration. For production, use Raspberry Pi or native Debian.
 ```bash
-./scripts/setup-git.sh
-# Or manually:
-git config --global user.email "your.email@example.com"
-git config --global user.name "Your Name"
-git config --global init.defaultBranch main
+# 1. Enable systemd in WSL
+sudo nano /etc/wsl.conf
 ```
 
-2. **Run the setup**:
+Add this:
+```ini
+[boot]
+systemd=true
+command="sysctl -w net.ipv4.ip_unprivileged_port_start=53"
+```
+
+Save and exit, then from PowerShell:
+```powershell
+wsl --shutdown
+wsl -d Debian
+```
 ```bash
+# 2. Continue with normal setup
+sudo apt update && sudo apt install -y git
+cd ~
+git clone https://github.com/BMogetta/test-homelab.git
+cd test-homelab
+chmod +x setup.sh
 ./setup.sh
 ```
 
-3. **Encrypt your environment** (optional but recommended):
-```bash
-./scripts/encrypt-env.sh
-```
-
-4. **Initialize repository**:
-```bash
-git init -b main
-git add .
-git commit -m "feat: initial setup for test homelab"
-git remote add origin https://github.com/YOUR_USERNAME/homelab-setup.git
-git push -u origin main
-```
-
-## Manual Installation Steps
-
-If you prefer to run steps individually:
-
-### 1. System Preparation
-
-```bash
-./scripts/01-system-prep.sh
-```
-
-This will:
-- Update system packages
-- Install essential tools
-- Configure timezone
-- Verify systemd
-
-### 2. Install Podman
-
-```bash
-./scripts/02-install-podman.sh
-```
-
-This will:
-- Install Podman and podman-compose
-- Enable podman socket
-- Configure rootless mode
-
-### 3. Install Cockpit
-
-```bash
-./scripts/03-install-cockpit.sh
-```
-
-This will:
-- Install Cockpit and cockpit-podman
-- Enable and start Cockpit service
-- Configure firewall (if needed)
-
-### 4. Deploy Services
-
-```bash
-./scripts/04-deploy-services.sh
-```
-
-This will:
-- Create directory structure
-- Generate configuration files
-- Start all containers
+**WSL2 Limitations:** Some services may need port adjustments. See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for WSL2-specific issues.
 
 ## Service Access
 
-After deployment, services will be available at:
+After deployment:
 
-- **Cockpit**: https://localhost:9090
-- **Nginx Proxy Manager**: http://localhost:81
-- **Pi-hole**: http://localhost:8080 (admin: /admin)
-- **UniFi Controller**: https://localhost:8443
-- **Uptime Kuma**: http://localhost:3001
-- **Home Assistant**: http://localhost:8123
-- **Stirling PDF**: http://localhost:8082
-
-## Directory Structure
-
-```
-~/homelab/
-├── unifi/
-│   ├── data/
-│   └── mongodb/
-├── pihole/
-│   ├── etc-pihole/
-│   └── etc-dnsmasq.d/
-├── nginx-proxy-manager/
-│   ├── data/
-│   └── letsencrypt/
-├── uptime-kuma/
-│   └── data/
-├── homeassistant/
-│   └── config/
-├── stirling-pdf/
-│   ├── data/
-│   └── configs/
-└── compose.yml
-```
+| Service | URL | Notes |
+|---------|-----|-------|
+| Homarr Dashboard | http://localhost:7575 | Create admin on first run |
+| Dozzle (Logs) | http://localhost:8888 | Real-time container logs |
+| Cockpit | https://localhost:9090 | System management |
+| Nginx Proxy Manager | http://localhost:81 | admin@example.com / changeme |
+| Pi-hole | http://localhost:8080/admin | Password in .env |
+| UniFi Controller | https://localhost:8443 | Follow setup wizard |
+| Uptime Kuma | http://localhost:3001 | Create admin on first run |
+| Home Assistant | http://localhost:8123 | Follow setup wizard |
+| Stirling PDF | http://localhost:8082 | Ready to use |
 
 ## Configuration
 
-### Environment Variables
+### Encrypted Environment Variables
 
-Copy `.env.example` to `.env` and customize:
+Your `.env.age` contains encrypted credentials. The setup script will prompt for the passphrase to decrypt it.
 
+To update credentials later:
 ```bash
-cp .env.example .env
-nano .env
-```
+# Edit .env
+nano ~/homelab/.env
 
-### Encrypted Environment Variables (Optional but Recommended)
-
-You can encrypt your `.env` file to safely store it in the repository:
-
-```bash
-# After configuring your .env with real passwords
+# Re-encrypt
 ./scripts/encrypt-env.sh
 
-# Commit the encrypted file
+# Commit changes
 git add .env.age
-git commit -m "feat: add encrypted environment"
+git commit -m "chore: update credentials"
+git push
 ```
 
-### Optional Configuration Backups (Advanced)
+### Optional Configuration Backups
 
-You can also backup and encrypt your personalized configurations:
-
+Backup your customizations (git config, SSH keys, service configs):
 ```bash
-# After customizing services (git, SSH, Homarr, etc.)
+# After customizing your homelab
 ./scripts/encrypt-config.sh
 
-# Commit encrypted configs
+# Commit
 git add configs/
 git commit -m "feat: add encrypted configurations"
+git push
 ```
 
-This allows you to restore:
-- Git configuration (user/email)
-- SSH keys
-- Service customizations (Homarr dashboard, Nginx proxy hosts, Pi-hole lists)
+On next fresh install, these will be automatically restored.
 
-On a fresh installation, the setup script will automatically detect and offer to decrypt both `.env.age` and any configs in `configs/`.
-
-**See [ENCRYPTION.md](./ENCRYPTION.md) and [configs/README.md](./configs/README.md) for detailed instructions.**
-
-### Podman Compose File
-
-The main compose file is located at `~/homelab/compose.yml`
-
-To manage services:
-
+## Useful Commands
 ```bash
-cd ~/homelab
+# View running containers
+podman ps
 
-# Start all services
-podman-compose up -d
+# View logs
+cd ~/homelab
+podman-compose logs -f
+
+# Restart a service
+podman-compose restart SERVICE_NAME
 
 # Stop all services
 podman-compose down
 
-# View logs
-podman-compose logs -f
+# Start all services
+podman-compose up -d
 
-# Restart a specific service
-podman-compose restart pihole
-```
-
-## Backup and Restore
-
-### Backup
-
-```bash
+# Backup configuration
+cd ~/test-homelab
 ./scripts/backup.sh
 ```
 
-Creates a timestamped backup in `~/homelab-backups/`
+## Documentation
 
-### Restore
-
-```bash
-./scripts/restore.sh ~/homelab-backups/backup-TIMESTAMP.tar.gz
-```
-
-## Troubleshooting
-
-### Check Podman Status
-
-```bash
-systemctl --user status podman.socket
-podman ps -a
-```
-
-### Check Service Logs
-
-```bash
-cd ~/homelab
-podman-compose logs SERVICE_NAME
-```
-
-### Reset Everything
-
-```bash
-./scripts/reset.sh
-```
-
-**WARNING**: This will remove all containers, volumes, and data!
-
-## Updates
-
-### Update System
-
-```bash
-sudo apt update && sudo apt upgrade -y
-```
-
-### Update Containers
-
-```bash
-cd ~/homelab
-podman-compose pull
-podman-compose up -d
-```
+- [ENCRYPTION.md](./ENCRYPTION.md) - Detailed encryption guide
+- [SERVICES.md](./SERVICES.md) - Service-specific documentation
+- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Common issues and solutions
+- [configs/README.md](./configs/README.md) - Optional configs guide
 
 ## Platform Support
 
-- ✅ WSL2 (Debian)
-- ✅ Raspberry Pi 5 (Debian 12 ARM64)
+- ✅ Raspberry Pi 5 (Debian 12 ARM64) - **Recommended**
 - ✅ Proxmox LXC (Debian 12)
 - ✅ Bare metal Debian 12
+- ⚠️  WSL2 (Testing only - has limitations)
 
 ## License
 
 MIT
-
-## Contributing
-
-Pull requests welcome!
