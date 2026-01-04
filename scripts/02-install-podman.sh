@@ -40,21 +40,8 @@ install_podman_compose() {
         return 0
     fi
     
-    log_info "Installing podman-compose..."
-    
-    # Install pip3 if not present
-    if ! command -v pip3 &> /dev/null; then
-        sudo apt install -y python3-pip
-    fi
-    
-    # Install podman-compose
-    pip3 install --user podman-compose
-    
-    # Add to PATH if not already there
-    if ! grep -q "$HOME/.local/bin" "$HOME/.bashrc"; then
-        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-        export PATH="$HOME/.local/bin:$PATH"
-    fi
+    log_info "Installing podman-compose from Debian repository..."
+    sudo apt install -y podman-compose
 }
 
 # Enable podman socket (for Cockpit and other tools)
