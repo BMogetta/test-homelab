@@ -1,0 +1,35 @@
+# Ignore environment files with secrets
+*.env
+
+# Allow encrypted environment files
+!*.env.age
+
+# Ignore data directories (these should be backed up separately)
+homelab/*
+
+# Allow encrypted environment in homelab
+!homelab/.env.age
+
+# Allow configs directory and encrypted files
+!configs/
+configs/*
+!configs/*.age
+!configs/README.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Backups
+*.backup
+*-backup.tar.gz
