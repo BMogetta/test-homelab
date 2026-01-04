@@ -127,6 +127,13 @@ main() {
     
     # Check if encrypted .env exists and offer to decrypt
     if [ -f "$SCRIPT_DIR/.env.age" ]; then
+        # Copy .env.age to homelab directory if not there
+        if [ ! -f "$HOME/homelab/.env.age" ]; then
+            log_info "Copying .env.age to homelab directory..."
+            mkdir -p "$HOME/homelab"
+            cp "$SCRIPT_DIR/.env.age" "$HOME/homelab/.env.age"
+        fi
+        
         if [ ! -f "$HOME/homelab/.env" ]; then
             echo ""
             log_info "=========================================="
@@ -136,12 +143,12 @@ main() {
             log_info "Found: .env.age"
             log_warn "Decryption is REQUIRED to continue"
             echo ""
-        
-	    decrypt_script="${SCRIPT_DIR}/scripts/decrypt-env.sh"
+            
+            decrypt_script="${SCRIPT_DIR}/scripts/decrypt-env.sh"
             if [ -f "$decrypt_script" ]; then
                 chmod +x "$decrypt_script"
                 bash "$decrypt_script"
-            
+                
                 # Verify decryption succeeded
                 if [ ! -f "$HOME/homelab/.env" ]; then
                     log_error "Decryption failed or was cancelled"
