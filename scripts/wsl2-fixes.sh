@@ -142,7 +142,6 @@ main() {
     configure_podman_networking
     configure_unprivileged_ports
     configure_wsl_conf
-    adjust_pihole_ports
     display_summary
     
     log_info "WSL2 fixes complete!"
