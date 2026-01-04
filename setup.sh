@@ -60,6 +60,33 @@ main() {
     log_info "Running pre-flight checks..."
     check_debian
     check_systemd
+
+    # WSL2 detection and warning
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        log_warn "WSL2 environment detected"
+        
+        # Check if WSL2 fixes have been applied
+        if ! sysctl net.ipv4.ip_unprivileged_port_start 2>/dev/null | grep -q "= 53"; then
+            echo ""
+            log_error "WSL2 fixes have NOT been applied yet"
+            log_info "Please run the following BEFORE setup.sh:"
+            echo ""
+            echo "  ./scripts/wsl2-fixes.sh"
+            echo "  exit"
+            echo "  # From PowerShell: wsl --shutdown"
+            echo "  # Then: wsl -d Debian"
+            echo "  # Finally: ./setup.sh"
+            echo ""
+            read -p "Continue anyway? (not recommended) (y/N): " continue_wsl
+            if [[ ! "$continue_wsl" =~ ^[Yy]$ ]]; then
+                log_info "Setup cancelled. Apply WSL2 fixes first."
+                exit 1
+            fi
+        else
+            log_info "✓ WSL2 fixes already applied"
+        fi
+    fi
+    
     echo ""
     
     # Setup git if not configured

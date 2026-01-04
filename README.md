@@ -39,35 +39,36 @@ The setup will:
 
 ### For WSL2 (Testing Only)
 
-**Important:** WSL2 requires additional configuration. For production, use Raspberry Pi or native Debian.
+**Important:** WSL2 is for testing only. For production, use Raspberry Pi or native Debian.
 ```bash
-# 1. Enable systemd in WSL
-sudo nano /etc/wsl.conf
+# Install git
+sudo apt update && sudo apt install -y git
+
+# Clone repository
+cd ~
+git clone https://github.com/BMogetta/test-homelab.git
+cd test-homelab
+
+# Apply WSL2 fixes FIRST
+chmod +x scripts/wsl2-fixes.sh
+./scripts/wsl2-fixes.sh
+
+# Exit and restart WSL
+exit
 ```
 
-Add this:
-```ini
-[boot]
-systemd=true
-command="sysctl -w net.ipv4.ip_unprivileged_port_start=53"
-```
-
-Save and exit, then from PowerShell:
+From PowerShell:
 ```powershell
 wsl --shutdown
 wsl -d Debian
 ```
 ```bash
-# 2. Continue with normal setup
-sudo apt update && sudo apt install -y git
-cd ~
-git clone https://github.com/BMogetta/test-homelab.git
-cd test-homelab
-chmod +x setup.sh
+# Now run setup
+cd ~/test-homelab
 ./setup.sh
 ```
 
-**WSL2 Limitations:** Some services may need port adjustments. See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for WSL2-specific issues.
+**WSL2 Limitations:** See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for issues.
 
 ## Service Access
 
