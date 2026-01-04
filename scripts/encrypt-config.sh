@@ -3,8 +3,6 @@
 # Encrypt Optional Configuration Files
 # Run this AFTER you've customized your homelab to backup configurations
 
-set -e
-
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -51,10 +49,11 @@ if [ -f ~/.gitconfig ]; then
     read -p "Encrypt git config (~/.gitconfig)? (Y/n): " encrypt_git
     if [[ ! "$encrypt_git" =~ ^[Nn]$ ]]; then
         log_info "Encrypting git config..."
-        age -p -o "$CONFIGS_DIR/git-config.age" ~/.gitconfig
-        if [ $? -eq 0 ]; then
+        if age -p -o "$CONFIGS_DIR/git-config.age" ~/.gitconfig; then
             log_info "✓ git-config.age created"
             ((encrypted_count++))
+        else
+            log_warn "Failed to encrypt git config"
         fi
     fi
 else
@@ -69,10 +68,11 @@ if [ -d ~/.ssh ] && [ -n "$(ls -A ~/.ssh 2>/dev/null)" ]; then
     if [[ ! "$encrypt_ssh" =~ ^[Nn]$ ]]; then
         log_info "Encrypting SSH keys..."
         tar -czf /tmp/ssh-backup.tar.gz -C ~/.ssh .
-        age -p -o "$CONFIGS_DIR/ssh-keys.age" /tmp/ssh-backup.tar.gz
-        if [ $? -eq 0 ]; then
+        if age -p -o "$CONFIGS_DIR/ssh-keys.age" /tmp/ssh-backup.tar.gz; then
             log_info "✓ ssh-keys.age created"
             ((encrypted_count++))
+        else
+            log_warn "Failed to encrypt SSH keys"
         fi
         rm -f /tmp/ssh-backup.tar.gz
     fi
@@ -88,10 +88,11 @@ if [ -d ~/homelab/homarr/configs ] && [ -n "$(ls -A ~/homelab/homarr/configs 2>/
     if [[ ! "$encrypt_homarr" =~ ^[Nn]$ ]]; then
         log_info "Encrypting Homarr config..."
         tar -czf /tmp/homarr-config.tar.gz -C ~/homelab/homarr configs
-        age -p -o "$CONFIGS_DIR/homarr-config.age" /tmp/homarr-config.tar.gz
-        if [ $? -eq 0 ]; then
+        if age -p -o "$CONFIGS_DIR/homarr-config.age" /tmp/homarr-config.tar.gz; then
             log_info "✓ homarr-config.age created"
             ((encrypted_count++))
+        else
+            log_warn "Failed to encrypt Homarr config"
         fi
         rm -f /tmp/homarr-config.tar.gz
     fi
@@ -108,10 +109,11 @@ if [ -d ~/homelab/nginx-proxy-manager/data ] && [ -n "$(ls -A ~/homelab/nginx-pr
         log_info "Encrypting Nginx Proxy Manager config..."
         log_warn "This may take a moment for large configurations..."
         tar -czf /tmp/nginx-config.tar.gz -C ~/homelab/nginx-proxy-manager data
-        age -p -o "$CONFIGS_DIR/nginx-proxy-manager.age" /tmp/nginx-config.tar.gz
-        if [ $? -eq 0 ]; then
+        if age -p -o "$CONFIGS_DIR/nginx-proxy-manager.age" /tmp/nginx-config.tar.gz; then
             log_info "✓ nginx-proxy-manager.age created"
             ((encrypted_count++))
+        else
+            log_warn "Failed to encrypt Nginx Proxy Manager config"
         fi
         rm -f /tmp/nginx-config.tar.gz
     fi
@@ -127,10 +129,11 @@ if [ -d ~/homelab/pihole/etc-pihole ] && [ -n "$(ls -A ~/homelab/pihole/etc-piho
     if [[ ! "$encrypt_pihole" =~ ^[Nn]$ ]]; then
         log_info "Encrypting Pi-hole config..."
         tar -czf /tmp/pihole-config.tar.gz -C ~/homelab/pihole etc-pihole etc-dnsmasq.d
-        age -p -o "$CONFIGS_DIR/pihole-config.age" /tmp/pihole-config.tar.gz
-        if [ $? -eq 0 ]; then
+        if age -p -o "$CONFIGS_DIR/pihole-config.age" /tmp/pihole-config.tar.gz; then
             log_info "✓ pihole-config.age created"
             ((encrypted_count++))
+        else
+            log_warn "Failed to encrypt Pi-hole config"
         fi
         rm -f /tmp/pihole-config.tar.gz
     fi
