@@ -69,16 +69,11 @@ configure_unprivileged_ports() {
         return
     fi
     
-    # Add to sysctl.conf if not already there
-    if ! grep -q "net.ipv4.ip_unprivileged_port_start" /etc/sysctl.conf; then
-        echo "net.ipv4.ip_unprivileged_port_start=53" | sudo tee -a /etc/sysctl.conf
-        log_info "Added to /etc/sysctl.conf"
-    fi
-    
-    # Apply immediately
+    # Apply immediately (will be lost on restart, persisted via wsl.conf)
     sudo sysctl -w net.ipv4.ip_unprivileged_port_start=53
     
     log_info "✓ Unprivileged ports configured (ports 53+ allowed)"
+    log_info "  (Will be persisted via /etc/wsl.conf)"
 }
 
 # Fix 3: Configure WSL to persist sysctl settings
@@ -95,16 +90,38 @@ configure_wsl_conf() {
         log_info "Backed up existing /etc/wsl.conf"
     fi
     
-    # Check if boot section exists
+    # Check if [boot] section exists
     if ! sudo grep -q "^\[boot\]" /etc/wsl.conf; then
-        echo "" | sudo tee -a /etc/wsl.conf
-        echo "[boot]" | sudo tee -a /etc/wsl.conf
-        echo "systemd=true" | sudo tee -a /etc/wsl.conf
-        echo 'command="sysctl -w net.ipv4.ip_unprivileged_port_start=53"' | sudo tee -a /etc/wsl.conf
+        # No [boot] section, add everything
+        echo "" | sudo tee -a /etc/wsl.conf > /dev/null
+        echo "[boot]" | sudo tee -a /etc/wsl.conf > /dev/null
+        echo "systemd=true" | sudo tee -a /etc/wsl.conf > /dev/null
+        echo 'command="sysctl -w net.ipv4.ip_unprivileged_port_start=53"' | sudo tee -a /etc/wsl.conf > /dev/null
         log_info "✓ Added boot configuration to /etc/wsl.conf"
     else
-        log_warn "/etc/wsl.conf already has [boot] section"
-        log_warn "Manually add: command=\"sysctl -w net.ipv4.ip_unprivileged_port_start=53\""
+        # [boot] section exists, check what's missing
+        
+        # Check if systemd=true exists
+        if ! sudo grep -q "^systemd=true" /etc/wsl.conf; then
+            sudo sed -i '/^\[boot\]/a systemd=true' /etc/wsl.conf
+            log_info "✓ Added systemd=true to [boot] section"
+        fi
+        
+        # Check if command line exists
+        if ! sudo grep -q '^command=' /etc/wsl.conf; then
+            # Add command after the [boot] section
+            sudo sed -i '/^\[boot\]/a command="sysctl -w net.ipv4.ip_unprivileged_port_start=53"' /etc/wsl.conf
+            log_info "✓ Added sysctl command to [boot] section"
+        else
+            # Command exists, check if it has our sysctl
+            if ! sudo grep -q 'ip_unprivileged_port_start=53' /etc/wsl.conf; then
+                log_warn "command= exists but doesn't set ip_unprivileged_port_start"
+                log_warn "Current command: $(sudo grep '^command=' /etc/wsl.conf)"
+                log_warn "You may need to manually add: sysctl -w net.ipv4.ip_unprivileged_port_start=53"
+            else
+                log_info "✓ Boot configuration already correct"
+            fi
+        fi
     fi
 }
 
