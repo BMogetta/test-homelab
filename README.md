@@ -43,8 +43,10 @@ The setup will:
 ```bash
 sudo apt update && sudo apt install -y git && \
 cd ~ && git clone https://github.com/BMogetta/test-homelab.git && \
-cd test-homelab && chmod +x scripts/wsl2-fixes.sh && ./scripts/wsl2-fixes.sh
+cd test-homelab && chmod +x scripts/*.sh && ./scripts/wsl2-fixes.sh
+```
 
+```bash
 # Exit and restart WSL
 exit
 ```
