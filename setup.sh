@@ -98,49 +98,24 @@ main() {
         echo ""
     fi
     
-    # Run installation scripts in order
-    scripts=(
-        "01-system-prep.sh"
-        "02-install-podman.sh"
-        "03-install-cockpit.sh"
-        "04-deploy-services.sh"
-    )
-    
-    for script in "${scripts[@]}"; do
-        script_path="${SCRIPT_DIR}/scripts/${script}"
-        
-        if [ -f "$script_path" ]; then
-            log_info "Running ${script}..."
-            chmod +x "$script_path"
-            
-            if bash "$script_path"; then
-                log_info "✓ ${script} completed successfully"
-            else
-                log_error "✗ ${script} failed"
-                exit 1
-            fi
-            echo ""
-        else
-            log_warn "Script not found: ${script_path}"
-        fi
-    done
-    
-    # Check if encrypted .env exists and offer to decrypt
+    # Copy .env.age from repo to homelab directory BEFORE running scripts
     if [ -f "$SCRIPT_DIR/.env.age" ]; then
-        # Copy .env.age to homelab directory if not there
+        mkdir -p "$HOME/homelab"
         if [ ! -f "$HOME/homelab/.env.age" ]; then
             log_info "Copying .env.age to homelab directory..."
-            mkdir -p "$HOME/homelab"
             cp "$SCRIPT_DIR/.env.age" "$HOME/homelab/.env.age"
         fi
-        
+    fi
+    
+    # Decrypt .env BEFORE running deployment scripts
+    if [ -f "$HOME/homelab/.env.age" ]; then
         if [ ! -f "$HOME/homelab/.env" ]; then
             echo ""
             log_info "=========================================="
             log_info "Encrypted environment file detected"
             log_info "=========================================="
             echo ""
-            log_info "Found: .env.age"
+            log_info "Found: ~/homelab/.env.age"
             log_warn "Decryption is REQUIRED to continue"
             echo ""
             
@@ -167,6 +142,35 @@ main() {
         log_error "This repository requires encrypted credentials"
         exit 1
     fi
+    
+    echo ""
+    
+    # Run installation scripts in order (AFTER .env is ready)
+    scripts=(
+        "01-system-prep.sh"
+        "02-install-podman.sh"
+        "03-install-cockpit.sh"
+        "04-deploy-services.sh"
+    )
+    
+    for script in "${scripts[@]}"; do
+        script_path="${SCRIPT_DIR}/scripts/${script}"
+        
+        if [ -f "$script_path" ]; then
+            log_info "Running ${script}..."
+            chmod +x "$script_path"
+            
+            if bash "$script_path"; then
+                log_info "✓ ${script} completed successfully"
+            else
+                log_error "✗ ${script} failed"
+                exit 1
+            fi
+            echo ""
+        else
+            log_warn "Script not found: ${script_path}"
+        fi
+    done
     
     # Check if optional encrypted configs exist and offer to restore
     if [ -d "${SCRIPT_DIR}/configs" ] && [ -n "$(ls -A "${SCRIPT_DIR}/configs"/*.age 2>/dev/null)" ]; then
@@ -209,6 +213,8 @@ main() {
     echo ""
     log_info "Services are now running. Access them at:"
     echo ""
+    echo "  Homarr Dashboard:     http://localhost:7575"
+    echo "  Dozzle (Logs):        http://localhost:8888"
     echo "  Cockpit:              https://localhost:9090"
     echo "  Nginx Proxy Manager:  http://localhost:81"
     echo "  Pi-hole:              http://localhost:8080/admin"
@@ -219,6 +225,7 @@ main() {
     echo ""
     log_info "To manage services:"
     echo "  cd ~/homelab"
+    echo "  podman ps"
     echo "  podman-compose logs -f"
     echo "  podman-compose restart SERVICE_NAME"
     echo ""
