@@ -27,6 +27,32 @@ check_podman() {
     fi
 }
 
+# Install dependencies
+install_dependencies() {
+    log_info "Installing Podman dependencies..."
+    
+    deps=(
+        "fuse-overlayfs"
+        "slirp4netns"
+        "uidmap"
+    )
+    
+    to_install=()
+    
+    for dep in "${deps[@]}"; do
+        if ! dpkg -l | grep -q "^ii  $dep "; then
+            to_install+=("$dep")
+        fi
+    done
+    
+    if [ ${#to_install[@]} -gt 0 ]; then
+        log_info "Installing: ${to_install[*]}"
+        sudo apt install -y "${to_install[@]}"
+    else
+        log_info "✓ All dependencies already installed"
+    fi
+}
+
 # Install Podman
 install_podman() {
     log_info "Installing Podman..."
@@ -71,8 +97,8 @@ configure_storage() {
         cat > "$config_dir/storage.conf" << 'EOF'
 [storage]
 driver = "overlay"
-runroot = "/run/user/1000/containers"
-graphroot = "$HOME/.local/share/containers/storage"
+runroot = "/run/user/$UID/containers"
+graphroot = "/home/$USER/.local/share/containers/storage"
 
 [storage.options]
 mount_program = "/usr/bin/fuse-overlayfs"
@@ -119,6 +145,7 @@ main() {
     log_info "=== Podman Installation ==="
     
     if ! check_podman; then
+        install_dependencies
         install_podman
     fi
     

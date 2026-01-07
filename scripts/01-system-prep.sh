@@ -7,6 +7,7 @@ set -e
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 log_info() {
@@ -15,6 +16,10 @@ log_info() {
 
 log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
 }
 
 # Update package lists
@@ -39,7 +44,6 @@ install_essentials() {
         "gnupg"
         "lsb-release"
         "apt-transport-https"
-        "age"
     )
     
     to_install=()
@@ -57,6 +61,73 @@ install_essentials() {
         sudo apt install -y "${to_install[@]}"
     else
         log_info "All essential packages already installed"
+    fi
+}
+
+# Install age (encryption tool)
+install_age() {
+    if command -v age &> /dev/null; then
+        log_info "✓ age already installed: $(age --version 2>&1 | head -n1)"
+        return 0
+    fi
+    
+    log_info "Installing age..."
+    
+    # Try to install from apt first
+    if sudo apt install -y age 2>/dev/null; then
+        log_info "✓ age installed from apt repository"
+        return 0
+    fi
+    
+    log_warn "age not available in apt, installing from GitHub releases..."
+    
+    # Detect architecture
+    ARCH=$(uname -m)
+    case $ARCH in
+        x86_64)
+            AGE_ARCH="amd64"
+            ;;
+        aarch64|arm64)
+            AGE_ARCH="arm64"
+            ;;
+        armv7l|armv6l)
+            AGE_ARCH="armv7"
+            ;;
+        *)
+            log_error "Unsupported architecture: $ARCH"
+            exit 1
+            ;;
+    esac
+    
+    # Get latest version
+    AGE_VERSION=$(curl -s https://api.github.com/repos/FiloSottile/age/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+    
+    if [ -z "$AGE_VERSION" ]; then
+        log_error "Could not determine latest age version"
+        exit 1
+    fi
+    
+    log_info "Downloading age ${AGE_VERSION} for ${AGE_ARCH}..."
+    
+    # Download and install
+    TMP_DIR=$(mktemp -d)
+    cd "$TMP_DIR"
+    
+    wget -q "https://github.com/FiloSottile/age/releases/download/${AGE_VERSION}/age-${AGE_VERSION}-linux-${AGE_ARCH}.tar.gz"
+    
+    tar xzf "age-${AGE_VERSION}-linux-${AGE_ARCH}.tar.gz"
+    
+    sudo install -m 755 "age/age" /usr/local/bin/
+    sudo install -m 755 "age/age-keygen" /usr/local/bin/
+    
+    cd - > /dev/null
+    rm -rf "$TMP_DIR"
+    
+    if command -v age &> /dev/null; then
+        log_info "✓ age installed successfully: $(age --version 2>&1 | head -n1)"
+    else
+        log_error "age installation failed"
+        exit 1
     fi
 }
 
@@ -95,11 +166,16 @@ main() {
     
     update_system
     install_essentials
+    install_age
     configure_timezone
     verify_systemd
     create_directories
     
     log_info "System preparation complete!"
+    log_info "Installed tools:"
+    echo "  - age: $(age --version 2>&1 | head -n1)"
+    echo "  - git: $(git --version)"
+    echo "  - curl: $(curl --version | head -n1)"
 }
 
 main "$@"
