@@ -131,23 +131,47 @@ install_age() {
     fi
 }
 
-# Configure timezone (skip if already set)
+# Configure timezone (compatible with DietPi)
 configure_timezone() {
-    current_tz=$(timedatectl show -p Timezone --value)
     target_tz="America/Argentina/Buenos_Aires"
     
-    if [ "$current_tz" != "$target_tz" ]; then
-        log_info "Setting timezone to $target_tz..."
-        sudo timedatectl set-timezone "$target_tz"
+    # Try timedatectl first (systemd)
+    if command -v timedatectl &> /dev/null && timedatectl status &> /dev/null; then
+        current_tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo "")
+        if [ "$current_tz" != "$target_tz" ]; then
+            log_info "Setting timezone to $target_tz..."
+            sudo timedatectl set-timezone "$target_tz"
+        else
+            log_info "✓ Timezone already set to $target_tz"
+        fi
     else
-        log_info "✓ Timezone already set to $target_tz"
+        # Fallback for systems without systemd (like DietPi minimal)
+        log_info "Using alternative timezone configuration..."
+        if [ -f /etc/timezone ]; then
+            current_tz=$(cat /etc/timezone)
+        else
+            current_tz=""
+        fi
+        
+        if [ "$current_tz" != "$target_tz" ]; then
+            log_info "Setting timezone to $target_tz..."
+            echo "$target_tz" | sudo tee /etc/timezone > /dev/null
+            sudo ln -sf "/usr/share/zoneinfo/$target_tz" /etc/localtime
+            log_info "✓ Timezone set successfully"
+        else
+            log_info "✓ Timezone already set to $target_tz"
+        fi
     fi
 }
 
 # Verify systemd
 verify_systemd() {
-    log_info "Verifying systemd..."
-    systemctl --version | head -n1
+    log_info "Verifying system init..."
+    if command -v systemctl &> /dev/null; then
+        systemctl --version | head -n1 || log_warn "systemd available but not fully functional"
+    else
+        log_warn "systemd not available (using alternative init system)"
+    fi
 }
 
 # Create homelab directory
