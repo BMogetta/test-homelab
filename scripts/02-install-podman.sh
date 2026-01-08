@@ -18,6 +18,18 @@ log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check if running as root
+if [ "$EUID" -eq 0 ] || [ "$(whoami)" = "root" ]; then
+    log_error "This script should NOT be run as root"
+    log_error "Rootless Podman is designed for non-root users"
+    log_error "Please run as a regular user: ./install-podman.sh"
+    exit 1
+fi
+
 # Check if podman is installed
 check_podman() {
     if command -v podman &> /dev/null; then
@@ -161,24 +173,23 @@ configure_subuid() {
     fi
 }
 
-# Enable user lingering (needed for rootless podman on minimal systems)
-enable_user_lingering() {
-    log_info "Enabling user lingering for rootless podman..."
-    
-    current_user=$(whoami)
-    
-    if loginctl show-user "$current_user" | grep -q "Linger=yes"; then
-        log_info "✓ User lingering already enabled"
-    else
-        sudo loginctl enable-linger "$current_user"
-        log_info "✓ User lingering enabled"
-    fi
+# Configure user environment for rootless podman
+configure_user_environment() {
+    log_info "Configuring user environment for Podman..."
     
     # Ensure XDG_RUNTIME_DIR is set
     if [ -z "$XDG_RUNTIME_DIR" ]; then
-        log_warn "XDG_RUNTIME_DIR not set, configuring for current session..."
+        log_info "Setting up XDG_RUNTIME_DIR..."
         export XDG_RUNTIME_DIR="/run/user/$(id -u)"
         export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+        
+        # Create runtime directory if it doesn't exist
+        if [ ! -d "$XDG_RUNTIME_DIR" ]; then
+            sudo mkdir -p "$XDG_RUNTIME_DIR"
+            sudo chown "$(id -u):$(id -g)" "$XDG_RUNTIME_DIR"
+            sudo chmod 700 "$XDG_RUNTIME_DIR"
+            log_info "✓ Created XDG_RUNTIME_DIR"
+        fi
         
         # Add to .bashrc if not already there
         if ! grep -q "XDG_RUNTIME_DIR" "$HOME/.bashrc" 2>/dev/null; then
@@ -189,12 +200,8 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
 BASHRC_EOF
             log_info "✓ Added environment variables to .bashrc"
         fi
-    fi
-    
-    # Try to start user services if they're not running
-    if ! systemctl --user is-active --quiet podman.socket 2>/dev/null; then
-        log_info "Starting user services..."
-        systemctl --user daemon-reexec 2>/dev/null || true
+    else
+        log_info "✓ XDG_RUNTIME_DIR already set"
     fi
 }
 
@@ -220,7 +227,7 @@ main() {
     
     install_podman_compose
     configure_subuid
-    enable_user_lingering
+    configure_user_environment
     configure_storage
     configure_registries
     enable_podman_socket
