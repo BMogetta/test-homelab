@@ -180,11 +180,13 @@ cat ~/.homelab_setup_checkpoint
 
 ## Platform Support
 
-- ✅ Raspberry Pi 5 (Debian 12 ARM64) - **Recommended**
-- ✅ DietPi (Raspberry Pi) - **Recommended**
+- ✅ Raspberry Pi 5 (Debian 12 ARM64) - **Recommended with Ethernet**
+- ✅ DietPi (Raspberry Pi) - **Recommended with Ethernet**
 - ✅ Proxmox LXC (Debian 12)
 - ✅ Bare metal Debian 12
 - ⚠️  WSL2 (Testing only - has limitations)
+
+**Important:** For macvlan networking (used by Pi-hole and Nginx), **Ethernet connection is strongly recommended**. WiFi adapters often don't support multiple MAC addresses required for macvlan.
 
 ## Troubleshooting
 

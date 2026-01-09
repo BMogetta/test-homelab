@@ -73,6 +73,27 @@ detect_environment() {
             log_info "Detected network interface: $NETWORK_INTERFACE"
         fi
         
+        # Warn about WiFi limitations with macvlan
+        if [[ "$NETWORK_INTERFACE" == wlan* ]]; then
+            echo ""
+            log_warn "=========================================="
+            log_warn "WARNING: WiFi detected"
+            log_warn "=========================================="
+            echo ""
+            log_warn "macvlan may not work properly over WiFi due to 802.11 limitations."
+            log_warn "Most WiFi adapters do not support multiple MAC addresses."
+            echo ""
+            log_info "Recommendations:"
+            echo "  1. Use Ethernet connection (highly recommended)"
+            echo "  2. Or accept that macvlan might not work and use port mapping instead"
+            echo ""
+            read -p "Continue with WiFi anyway? (y/N): " wifi_continue
+            if [[ ! "$wifi_continue" =~ ^[Yy]$ ]]; then
+                log_info "Setup cancelled. Please connect via Ethernet or configure for port mapping."
+                exit 1
+            fi
+        fi
+        
         # Detect network configuration
         NETWORK_INFO=$(ip -4 addr show "$NETWORK_INTERFACE" | grep inet | head -n1)
         CURRENT_IP=$(echo "$NETWORK_INFO" | awk '{print $2}' | cut -d'/' -f1)

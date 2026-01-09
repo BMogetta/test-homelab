@@ -324,6 +324,47 @@ create_directories() {
     fi
 }
 
+# Install macvlan routes service (for Raspberry Pi/physical deployments)
+install_macvlan_service() {
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    
+    # Check if the macvlan script exists in the repo
+    if [ ! -f "$SCRIPT_DIR/scripts/systemd/setup-macvlan-routes.sh" ]; then
+        log_warn "macvlan routes script not found, skipping installation"
+        log_info "This is normal for WSL2 or if not using macvlan networking"
+        return 0
+    fi
+    
+    log_info "Installing macvlan routes service..."
+    
+    # Copy script to system location
+    sudo cp "$SCRIPT_DIR/scripts/systemd/setup-macvlan-routes.sh" /usr/local/bin/
+    sudo chmod +x /usr/local/bin/setup-macvlan-routes.sh
+    
+    # Create systemd service file
+    sudo tee /etc/systemd/system/macvlan-routes.service > /dev/null << 'EOF'
+[Unit]
+Description=Setup macvlan ARP routes for containers
+After=network-online.target podman.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/setup-macvlan-routes.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Enable and start the service
+    sudo systemctl daemon-reload
+    sudo systemctl enable macvlan-routes.service
+    
+    log_info "✓ macvlan routes service installed and enabled"
+    log_info "  Service will configure ARP routes automatically on boot"
+}
+
 # Main execution
 main() {
     log_info "=== System Preparation ==="
@@ -336,6 +377,7 @@ main() {
     verify_systemd
     fix_dietpi_systemd  # This may exit and ask for re-login
     create_directories
+    install_macvlan_service  # Install macvlan routes service
     
     echo ""
     log_info "System preparation complete!"
