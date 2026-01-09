@@ -144,7 +144,7 @@ test_cockpit() {
     sleep 2
     
     # Try to connect to Cockpit
-    if curl -k -s -o /dev/null -w "%{http_code}" https://localhost:9090 | grep -qE "200|401"; then
+    if curl -k -s -o /dev/null -w "%{http_code}" https://localhost:9090 2>/dev/null | grep -qE "200|401"; then
         log_info "✓ Cockpit is accessible"
         return 0
     else

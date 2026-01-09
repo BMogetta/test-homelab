@@ -27,7 +27,7 @@ log_error() {
 if [ "$EUID" -eq 0 ] || [ "$(whoami)" = "root" ]; then
     log_error "This script should NOT be run as root"
     log_error "Rootless Podman is designed for non-root users"
-    log_error "Please run as a regular user: ./install-podman.sh"
+    log_error "Please run as a regular user"
     exit 1
 fi
 
@@ -54,7 +54,7 @@ install_dependencies() {
         "dbus-user-session"
         "netavark"
         "aardvark-dns"
-        "passt"  # This provides pasta for networking
+        "passt"  # Critical: provides pasta for networking
     )
     
     to_install=()
@@ -88,23 +88,6 @@ install_podman_compose() {
     
     log_info "Installing podman-compose from Debian repository..."
     sudo apt install -y podman-compose
-}
-
-# Enable systemd user lingering (fixes the session warnings)
-enable_user_lingering() {
-    current_user=$(whoami)
-    
-    log_info "Enabling systemd user lingering for $current_user..."
-    
-    if loginctl show-user "$current_user" 2>/dev/null | grep -q "Linger=yes"; then
-        log_info "✓ User lingering already enabled"
-    else
-        if sudo loginctl enable-linger "$current_user"; then
-            log_info "✓ User lingering enabled"
-        else
-            log_warn "Could not enable user lingering (might not be available)"
-        fi
-    fi
 }
 
 # Enable podman socket (for Cockpit and other tools)
@@ -181,9 +164,9 @@ EOF
     fi
 }
 
-# Configure containers.conf for better DietPi compatibility
+# Configure containers.conf for DietPi compatibility
 configure_containers_conf() {
-    log_info "Configuring containers.conf for DietPi/systemd compatibility..."
+    log_info "Configuring containers.conf for DietPi compatibility..."
     
     config_dir="$HOME/.config/containers"
     mkdir -p "$config_dir"
@@ -191,13 +174,15 @@ configure_containers_conf() {
     if [ ! -f "$config_dir/containers.conf" ]; then
         cat > "$config_dir/containers.conf" << 'EOF'
 [engine]
-# Use cgroupfs for better compatibility with systems without full systemd user session
-cgroup_manager = "systemd"
+# Use cgroupfs instead of systemd for better DietPi compatibility
+cgroup_manager = "cgroupfs"
 events_logger = "file"
 
 [network]
-# Use netavark as network backend (requires pasta)
+# Use netavark as network backend (requires pasta/passt package)
 network_backend = "netavark"
+# Disable internal DNS to avoid D-Bus issues on DietPi
+dns_enabled = false
 EOF
         log_info "✓ Created containers.conf"
     else
@@ -228,45 +213,12 @@ configure_subuid() {
     fi
 }
 
-# Configure user environment for rootless podman
-configure_user_environment() {
-    log_info "Configuring user environment for Podman..."
-    
-    # Ensure XDG_RUNTIME_DIR is set
-    if [ -z "$XDG_RUNTIME_DIR" ]; then
-        log_info "Setting up XDG_RUNTIME_DIR..."
-        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-        export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
-        
-        # Create runtime directory if it doesn't exist
-        if [ ! -d "$XDG_RUNTIME_DIR" ]; then
-            sudo mkdir -p "$XDG_RUNTIME_DIR"
-            sudo chown "$(id -u):$(id -g)" "$XDG_RUNTIME_DIR"
-            sudo chmod 700 "$XDG_RUNTIME_DIR"
-            log_info "✓ Created XDG_RUNTIME_DIR"
-        fi
-        
-        # Add to .bashrc if not already there
-        if ! grep -q "XDG_RUNTIME_DIR" "$HOME/.bashrc" 2>/dev/null; then
-            cat >> "$HOME/.bashrc" << 'BASHRC_EOF'
-
-# Podman environment variables
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
-BASHRC_EOF
-            log_info "✓ Added environment variables to .bashrc"
-        fi
-    else
-        log_info "✓ XDG_RUNTIME_DIR already set"
-    fi
-}
-
 # Verify pasta is installed
 verify_pasta() {
     log_info "Verifying pasta installation..."
     
     if command -v pasta &> /dev/null; then
-        log_info "✓ pasta is installed: $(pasta --version 2>&1 | head -n1 || echo 'pasta available')"
+        log_info "✓ pasta is installed: $(pasta --version 2>&1 | head -n1 || echo 'available')"
     else
         log_error "pasta is NOT installed - this will cause networking errors"
         log_info "Installing passt package..."
@@ -289,7 +241,7 @@ test_podman() {
         log_info "✓ Podman test successful"
     else
         log_warn "Podman test failed, but installation may still be OK"
-        log_info "This is normal on first run - containers will work after reboot/re-login"
+        log_info "This is normal on first run - containers will work"
     fi
 }
 
@@ -307,11 +259,9 @@ main() {
     install_podman_compose
     verify_pasta
     configure_subuid
-    configure_user_environment
     configure_storage
     configure_registries
     configure_containers_conf
-    enable_user_lingering
     enable_podman_socket
     test_podman
     
@@ -324,13 +274,11 @@ main() {
     podman-compose --version 2>/dev/null || log_warn "podman-compose version check failed"
     
     echo ""
-    log_info "Important notes:"
+    log_info "Important configuration:"
     echo "  ✓ pasta (networking) installed"
-    echo "  ✓ User lingering enabled (fixes systemd warnings)"
+    echo "  ✓ cgroupfs manager (DietPi compatible)"
+    echo "  ✓ Internal DNS disabled (avoids D-Bus issues)"
     echo "  ✓ Environment configured"
-    echo ""
-    log_warn "If you see 'systemd user session' warnings, they're now harmless"
-    log_info "Podman will work correctly with the current configuration"
     echo ""
     log_info "You can proceed with the next installation steps"
 }

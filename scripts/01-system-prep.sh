@@ -2,6 +2,7 @@
 
 # System Preparation Script
 # Idempotent - can be run multiple times safely
+# Now includes DietPi systemd-logind fixes
 
 set -e
 
@@ -20,6 +21,11 @@ log_warn() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Detect if DietPi
+is_dietpi() {
+    [ -f /boot/dietpi/.hw_model ] || [ -f /boot/dietpi.txt ]
 }
 
 # Update package lists
@@ -164,6 +170,102 @@ configure_timezone() {
     fi
 }
 
+# Fix DietPi systemd-logind (critical for Podman)
+fix_dietpi_systemd() {
+    if ! is_dietpi; then
+        log_info "Not DietPi, skipping systemd-logind fixes"
+        return 0
+    fi
+    
+    log_info "Detected DietPi - applying systemd-logind fixes..."
+    
+    # Re-enable systemd-logind if disabled
+    if [ -L /etc/systemd/system/systemd-logind.service ] && [ "$(readlink /etc/systemd/system/systemd-logind.service)" = "/dev/null" ]; then
+        log_info "Re-enabling systemd-logind..."
+        sudo rm /etc/systemd/system/systemd-logind.service
+        sudo systemctl unmask systemd-logind.service 2>/dev/null || true
+    fi
+    
+    # Start systemd-logind
+    if ! sudo systemctl is-active --quiet systemd-logind.service; then
+        log_info "Starting systemd-logind..."
+        sudo systemctl start systemd-logind.service
+    else
+        log_info "✓ systemd-logind already running"
+    fi
+    
+    # Verify PAM has systemd enabled
+    if ! grep -q "pam_systemd.so" /etc/pam.d/common-session; then
+        log_info "Adding pam_systemd to PAM configuration..."
+        echo "session optional pam_systemd.so" | sudo tee -a /etc/pam.d/common-session > /dev/null
+    else
+        log_info "✓ pam_systemd already configured"
+    fi
+    
+    # Enable lingering for current user
+    current_user=$(whoami)
+    if ! loginctl show-user "$current_user" 2>/dev/null | grep -q "Linger=yes"; then
+        log_info "Enabling user lingering..."
+        sudo loginctl enable-linger "$current_user" 2>/dev/null || true
+    else
+        log_info "✓ User lingering already enabled"
+    fi
+    
+    # Ensure /run/user/UID exists
+    USER_UID=$(id -u)
+    if [ ! -d "/run/user/$USER_UID" ]; then
+        log_info "Creating /run/user/$USER_UID..."
+        sudo mkdir -p "/run/user/$USER_UID"
+        sudo chown "$current_user:$current_user" "/run/user/$USER_UID"
+        sudo chmod 700 "/run/user/$USER_UID"
+    else
+        log_info "✓ /run/user/$USER_UID exists"
+    fi
+    
+    # Add environment variables to .bashrc
+    if ! grep -q "XDG_RUNTIME_DIR" "$HOME/.bashrc" 2>/dev/null; then
+        log_info "Adding XDG_RUNTIME_DIR to .bashrc..."
+        cat >> "$HOME/.bashrc" << 'EOF'
+
+# Runtime directory for systemd user session
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+EOF
+    else
+        log_info "✓ XDG_RUNTIME_DIR already in .bashrc"
+    fi
+    
+    # Check if user service is running
+    if ! sudo systemctl is-active --quiet "user@$USER_UID.service"; then
+        log_info "Starting user@$USER_UID.service..."
+        sudo systemctl start "user@$USER_UID.service"
+    else
+        log_info "✓ user@$USER_UID.service already running"
+    fi
+    
+    # Check if re-login is needed
+    if [ -z "$XDG_RUNTIME_DIR" ] || [ ! -S "$XDG_RUNTIME_DIR/bus" ]; then
+        echo ""
+        log_warn "=========================================="
+        log_warn "SESSION RESTART REQUIRED"
+        log_warn "=========================================="
+        echo ""
+        log_info "systemd-logind has been configured, but you need to"
+        log_info "restart your session for changes to take effect."
+        echo ""
+        log_info "Please run:"
+        echo ""
+        echo "  exit"
+        echo "  # Then reconnect via SSH"
+        echo "  ./setup.sh  # Resume setup from where it left off"
+        echo ""
+        read -p "Press ENTER to exit and restart session..." 
+        exit 0
+    else
+        log_info "✓ systemd user session is active"
+    fi
+}
+
 # Verify systemd
 verify_systemd() {
     log_info "Verifying system init..."
@@ -187,14 +289,17 @@ create_directories() {
 # Main execution
 main() {
     log_info "=== System Preparation ==="
+    echo ""
     
     update_system
     install_essentials
     install_age
     configure_timezone
     verify_systemd
+    fix_dietpi_systemd  # This may exit and ask for re-login
     create_directories
     
+    echo ""
     log_info "System preparation complete!"
     log_info "Installed tools:"
     echo "  - age: $(age --version 2>&1 | head -n1)"
