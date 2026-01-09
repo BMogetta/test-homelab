@@ -291,13 +291,16 @@ EOF
         log_info "systemd-logind has been configured, but you need to"
         log_info "restart your session for changes to take effect."
         echo ""
-        log_info "Please run:"
+        log_info "After reconnecting, run:"
         echo ""
-        echo "  exit"
-        echo "  # Then reconnect via SSH"
-        echo "  ./setup.sh  # Resume setup from where it left off"
+        echo "  cd ~/test-homelab && ./setup.sh"
         echo ""
-        read -p "Press ENTER to exit and restart session..." 
+        log_info "The setup will automatically continue from where it left off."
+        echo ""
+        log_info "Exiting now... please reconnect via SSH."
+        sleep 2
+        
+        # Exit the script - user will be disconnected
         exit 0
     else
         log_info "✓ systemd user session is active"
