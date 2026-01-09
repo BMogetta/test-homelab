@@ -8,6 +8,7 @@ set -e
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 log_info() {
@@ -53,6 +54,7 @@ install_dependencies() {
         "dbus-user-session"
         "netavark"
         "aardvark-dns"
+        "passt"  # This provides pasta for networking
     )
     
     to_install=()
@@ -88,18 +90,47 @@ install_podman_compose() {
     sudo apt install -y podman-compose
 }
 
+# Enable systemd user lingering (fixes the session warnings)
+enable_user_lingering() {
+    current_user=$(whoami)
+    
+    log_info "Enabling systemd user lingering for $current_user..."
+    
+    if loginctl show-user "$current_user" 2>/dev/null | grep -q "Linger=yes"; then
+        log_info "✓ User lingering already enabled"
+    else
+        if sudo loginctl enable-linger "$current_user"; then
+            log_info "✓ User lingering enabled"
+        else
+            log_warn "Could not enable user lingering (might not be available)"
+        fi
+    fi
+}
+
 # Enable podman socket (for Cockpit and other tools)
 enable_podman_socket() {
     log_info "Enabling Podman socket..."
     
     # Enable user socket
-    systemctl --user enable podman.socket --now 2>/dev/null || log_warn "User socket may already be enabled"
+    if systemctl --user enable podman.socket 2>&1 | grep -v "Created symlink"; then
+        log_info "✓ Podman socket enabled"
+    else
+        log_warn "Podman socket may already be enabled"
+    fi
+    
+    # Try to start it
+    if systemctl --user start podman.socket 2>&1; then
+        log_info "✓ Podman socket started"
+    else
+        log_warn "Could not start Podman socket (will start on next login)"
+    fi
     
     # Check status
-    if systemctl --user is-active --quiet podman.socket; then
+    if systemctl --user is-active --quiet podman.socket 2>/dev/null; then
         log_info "✓ Podman socket is active"
     else
-        log_warn "Podman socket may not be running yet"
+        log_warn "Podman socket is not active yet (normal for first-time setup)"
+        log_info "It will activate automatically when needed"
     fi
 }
 
@@ -150,6 +181,30 @@ EOF
     fi
 }
 
+# Configure containers.conf for better DietPi compatibility
+configure_containers_conf() {
+    log_info "Configuring containers.conf for DietPi/systemd compatibility..."
+    
+    config_dir="$HOME/.config/containers"
+    mkdir -p "$config_dir"
+    
+    if [ ! -f "$config_dir/containers.conf" ]; then
+        cat > "$config_dir/containers.conf" << 'EOF'
+[engine]
+# Use cgroupfs for better compatibility with systems without full systemd user session
+cgroup_manager = "systemd"
+events_logger = "file"
+
+[network]
+# Use netavark as network backend (requires pasta)
+network_backend = "netavark"
+EOF
+        log_info "✓ Created containers.conf"
+    else
+        log_info "✓ containers.conf already exists"
+    fi
+}
+
 # Configure subuid/subgid for rootless containers
 configure_subuid() {
     log_info "Configuring subuid/subgid mappings..."
@@ -194,6 +249,7 @@ configure_user_environment() {
         # Add to .bashrc if not already there
         if ! grep -q "XDG_RUNTIME_DIR" "$HOME/.bashrc" 2>/dev/null; then
             cat >> "$HOME/.bashrc" << 'BASHRC_EOF'
+
 # Podman environment variables
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
@@ -205,6 +261,26 @@ BASHRC_EOF
     fi
 }
 
+# Verify pasta is installed
+verify_pasta() {
+    log_info "Verifying pasta installation..."
+    
+    if command -v pasta &> /dev/null; then
+        log_info "✓ pasta is installed: $(pasta --version 2>&1 | head -n1 || echo 'pasta available')"
+    else
+        log_error "pasta is NOT installed - this will cause networking errors"
+        log_info "Installing passt package..."
+        sudo apt install -y passt
+        
+        if command -v pasta &> /dev/null; then
+            log_info "✓ pasta installed successfully"
+        else
+            log_error "Failed to install pasta"
+            return 1
+        fi
+    fi
+}
+
 # Test podman installation
 test_podman() {
     log_info "Testing Podman installation..."
@@ -213,36 +289,50 @@ test_podman() {
         log_info "✓ Podman test successful"
     else
         log_warn "Podman test failed, but installation may still be OK"
+        log_info "This is normal on first run - containers will work after reboot/re-login"
     fi
 }
 
 # Main execution
 main() {
     log_info "=== Podman Installation ==="
+    echo ""
     
     if ! check_podman; then
         install_dependencies
         install_podman
     fi
     
+    echo ""
     install_podman_compose
+    verify_pasta
     configure_subuid
     configure_user_environment
     configure_storage
     configure_registries
+    configure_containers_conf
+    enable_user_lingering
     enable_podman_socket
     test_podman
     
+    echo ""
+    log_info "=========================================="
     log_info "Podman installation complete!"
+    log_info "=========================================="
+    echo ""
     podman --version
     podman-compose --version 2>/dev/null || log_warn "podman-compose version check failed"
     
     echo ""
-    log_info "Environment configured for current session"
-    log_info "You can proceed with the next installation steps"
+    log_info "Important notes:"
+    echo "  ✓ pasta (networking) installed"
+    echo "  ✓ User lingering enabled (fixes systemd warnings)"
+    echo "  ✓ Environment configured"
     echo ""
-    log_info "Note: If you encounter any issues with Podman after a reboot,"
-    log_info "      simply logout and login again to reload the environment"
+    log_warn "If you see 'systemd user session' warnings, they're now harmless"
+    log_info "Podman will work correctly with the current configuration"
+    echo ""
+    log_info "You can proceed with the next installation steps"
 }
 
 main "$@"

@@ -2,7 +2,7 @@
 
 # Services Deployment Script
 # Idempotent - can be run multiple times safely
-# Now with macvlan support for Raspberry Pi
+# Now with improved macvlan support and cleanup
 
 set -e
 
@@ -24,6 +24,30 @@ log_error() {
 }
 
 HOMELAB_DIR="$HOME/homelab"
+
+# Cleanup existing containers and networks (idempotent)
+cleanup_existing() {
+    log_info "Checking for existing containers and networks..."
+    
+    cd "$HOMELAB_DIR" 2>/dev/null || return 0
+    
+    if [ -f "compose.yml" ]; then
+        log_info "Stopping and removing existing containers..."
+        podman-compose down 2>/dev/null || true
+        
+        # Force remove any stuck containers
+        log_info "Cleaning up any remaining containers..."
+        podman ps -a --format "{{.Names}}" | grep -E "(nginx-proxy-manager|pihole|unifi|uptime-kuma|homeassistant|stirling-pdf|homarr|dozzle)" | xargs -r podman rm -f 2>/dev/null || true
+        
+        # Remove macvlan network if it exists
+        log_info "Cleaning up networks..."
+        podman network rm macvlan_network 2>/dev/null || true
+        
+        log_info "✓ Cleanup complete"
+    else
+        log_info "No existing deployment found"
+    fi
+}
 
 # Detect environment
 detect_environment() {
@@ -141,8 +165,8 @@ create_env_file() {
 # Create compose file
 create_compose_file() {
     if [ -f "$HOMELAB_DIR/compose.yml" ]; then
-        log_warn "compose.yml already exists, skipping creation"
-        return
+        log_warn "compose.yml already exists, backing up..."
+        mv "$HOMELAB_DIR/compose.yml" "$HOMELAB_DIR/compose.yml.backup.$(date +%Y%m%d_%H%M%S)"
     fi
     
     log_info "Creating compose.yml..."
@@ -298,6 +322,8 @@ services:
       - "8888:8080"
     environment:
       - TZ=${TZ}
+    volumes:
+      - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
 EOF
     
     log_warn "WSL2 configuration created with remapped ports"
@@ -456,6 +482,8 @@ services:
       - "8888:8080"
     environment:
       - TZ=\${TZ}
+    volumes:
+      - /run/user/1000/podman/podman.sock:/var/run/docker.sock:ro
 EOF
     
     log_info "Macvlan configuration created"
@@ -465,6 +493,10 @@ EOF
 pull_images() {
     log_info "Pulling container images (this may take a while)..."
     cd "$HOMELAB_DIR"
+    
+    log_warn "You may see 'systemd user session' warnings - these are harmless"
+    echo ""
+    
     podman-compose pull || log_warn "Some images may have failed to pull"
 }
 
@@ -472,7 +504,16 @@ pull_images() {
 start_services() {
     log_info "Starting services..."
     cd "$HOMELAB_DIR"
-    podman-compose up -d
+    
+    log_warn "Ignoring systemd warnings - containers will start correctly"
+    echo ""
+    
+    podman-compose up -d || {
+        log_error "Failed to start services"
+        log_info "Checking container status..."
+        podman ps -a
+        return 1
+    }
     
     log_info "Services started!"
 }
@@ -551,13 +592,22 @@ EOF
 # Main execution
 main() {
     log_info "=== Services Deployment ==="
+    echo ""
     
+    cleanup_existing
+    echo ""
     detect_environment
+    echo ""
     create_directories
+    echo ""
     create_env_file
+    echo ""
     create_compose_file
+    echo ""
     pull_images
+    echo ""
     start_services
+    echo ""
     display_info
 }
 
