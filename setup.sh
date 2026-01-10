@@ -3,6 +3,7 @@
 # Homelab Setup - Main Installation Script
 # This script is idempotent and can be run multiple times safely
 # Uses checkpoints to track progress across reboots/re-logins
+# Supports: Debian, DietPi
 
 set -e
 
@@ -48,15 +49,23 @@ clear_checkpoint() {
     rm -f "$CHECKPOINT_FILE"
 }
 
-# Check if running on Debian
-check_debian() {
+# Detect OS type
+detect_os() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
         if [ "$ID" != "debian" ]; then
-            log_error "This script is designed for Debian. Detected: $ID"
+            log_error "This script is designed for Debian-based systems. Detected: $ID"
             exit 1
         fi
-        log_info "Detected Debian $VERSION_ID"
+        
+        # Check if DietPi
+        if [ -f /boot/dietpi/.hw_model ] || [ -f /boot/dietpi.txt ]; then
+            log_info "Detected DietPi $VERSION_ID"
+            export IS_DIETPI=true
+        else
+            log_info "Detected Debian $VERSION_ID"
+            export IS_DIETPI=false
+        fi
     else
         log_error "Cannot detect OS"
         exit 1
@@ -82,40 +91,14 @@ main() {
     
     # Pre-flight checks (always run)
     log_info "Running pre-flight checks..."
-    check_debian
+    detect_os
     check_systemd
-
-    # WSL2 detection and warning
-    if grep -qi microsoft /proc/version 2>/dev/null; then
-        log_warn "WSL2 environment detected"
-        
-        # Check if WSL2 fixes have been applied
-        if ! sysctl net.ipv4.ip_unprivileged_port_start 2>/dev/null | grep -q "= 53"; then
-            echo ""
-            log_error "WSL2 fixes have NOT been applied yet"
-            log_info "Please run the following BEFORE setup.sh:"
-            echo ""
-            echo "  ./scripts/wsl2-fixes.sh"
-            echo "  exit"
-            echo "  # From PowerShell: wsl --shutdown"
-            echo "  # Then: wsl -d Debian"
-            echo "  # Finally: ./setup.sh"
-            echo ""
-            read -p "Continue anyway? (not recommended) (y/N): " continue_wsl
-            if [[ ! "$continue_wsl" =~ ^[Yy]$ ]]; then
-                log_info "Setup cancelled. Apply WSL2 fixes first."
-                exit 1
-            fi
-        else
-            log_info "✓ WSL2 fixes already applied"
-        fi
-    fi
     
     echo ""
     
     # CHECKPOINT 0: Git setup
     if [ "$CURRENT_CHECKPOINT" -lt 1 ]; then
-        git_setup_script="${SCRIPT_DIR}/scripts/setup-git.sh"
+        git_setup_script="${SCRIPT_DIR}/scripts/utils/setup-git.sh"
         if [ -f "$git_setup_script" ]; then
             log_info "Checking Git configuration..."
             chmod +x "$git_setup_script"
@@ -154,7 +137,7 @@ main() {
                 log_warn "Decryption is REQUIRED to continue"
                 echo ""
                 
-                decrypt_script="${SCRIPT_DIR}/scripts/decrypt-env.sh"
+                decrypt_script="${SCRIPT_DIR}/scripts/encryption/decrypt-env.sh"
                 if [ -f "$decrypt_script" ]; then
                     chmod +x "$decrypt_script"
                     bash "$decrypt_script"
@@ -186,10 +169,10 @@ main() {
     
     # Run installation scripts in order
     scripts=(
-        "01-system-prep.sh:4"
-        "02-install-podman.sh:5"
-        "03-install-cockpit.sh:6"
-        "04-deploy-services.sh:7"
+        "setup/01-system-prep.sh:4"
+        "setup/02-install-podman.sh:5"
+        "setup/03-install-cockpit.sh:6"
+        "setup/04-deploy-services.sh:7"
     )
     
     for script_info in "${scripts[@]}"; do
@@ -237,18 +220,18 @@ main() {
             read -p "Would you like to restore these configurations? (y/N): " restore_configs
             
             if [[ "$restore_configs" =~ ^[Yy]$ ]]; then
-                decrypt_configs_script="${SCRIPT_DIR}/scripts/decrypt-configs.sh"
+                decrypt_configs_script="${SCRIPT_DIR}/scripts/encryption/decrypt-configs.sh"
                 if [ -f "$decrypt_configs_script" ]; then
                     chmod +x "$decrypt_configs_script"
                     bash "$decrypt_configs_script"
                 else
                     log_warn "Decrypt configs script not found"
-                    log_info "Run manually: ./scripts/decrypt-configs.sh"
+                    log_info "Run manually: ./scripts/encryption/decrypt-configs.sh"
                 fi
             else
                 log_info "Skipping optional configs restore"
                 log_info "This is a fresh installation - configure manually"
-                log_info "You can restore later with: ./scripts/decrypt-configs.sh"
+                log_info "You can restore later with: ./scripts/encryption/decrypt-configs.sh"
             fi
         fi
         set_checkpoint 8
@@ -267,12 +250,8 @@ main() {
     echo "  Homarr Dashboard:     http://localhost:7575"
     echo "  Dozzle (Logs):        http://localhost:8888"
     echo "  Cockpit:              https://localhost:9090"
-    echo "  Nginx Proxy Manager:  http://localhost:81"
-    echo "  Pi-hole:              http://localhost:8080/admin"
-    echo "  UniFi Controller:     https://localhost:8443"
-    echo "  Uptime Kuma:          http://localhost:3001"
-    echo "  Home Assistant:       http://localhost:8123"
-    echo "  Stirling PDF:         http://localhost:8082"
+    echo ""
+    log_info "For service-specific IPs, check: ~/homelab/compose.yml"
     echo ""
     log_info "To manage services:"
     echo "  cd ~/homelab"

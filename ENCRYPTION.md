@@ -5,11 +5,13 @@ This repository uses `age` encryption to safely store environment variables in v
 ## 🔐 Why Encrypt .env?
 
 Your `.env` file contains sensitive information:
+
 - Database passwords
 - Admin credentials
 - API keys
 
 Instead of keeping these only on your local machine, you can:
+
 - ✅ Store encrypted `.env.age` in the repository
 - ✅ Clone on a new machine and decrypt
 - ✅ Have a backup in case of disaster
@@ -26,7 +28,7 @@ After you've configured your homelab with real passwords:
 which age
 
 # 2. Encrypt your .env
-./scripts/encrypt-env.sh
+./scripts/encryption/encrypt-env.sh
 
 # 3. Commit the encrypted file
 git add homelab/.env.age
@@ -48,7 +50,7 @@ cd homelab-setup
 
 # 2. The setup script will detect .env.age and offer to decrypt
 # OR manually run:
-./scripts/decrypt-env.sh
+./scripts/encryption/decrypt-env.sh
 
 # 3. Start services
 cd ~/homelab
@@ -60,10 +62,11 @@ podman-compose up -d
 ### Encrypt
 
 ```bash
-./scripts/encrypt-env.sh
+./scripts/encryption/encrypt-env.sh
 ```
 
 This will:
+
 - Check that `~/homelab/.env` exists
 - Prompt for a passphrase (choose a strong one!)
 - Create `~/homelab/.env.age` (encrypted)
@@ -72,10 +75,11 @@ This will:
 ### Decrypt
 
 ```bash
-./scripts/decrypt-env.sh
+./scripts/encryption/decrypt-env.sh
 ```
 
 This will:
+
 - Check that `~/homelab/.env.age` exists
 - Prompt for your passphrase
 - Create `~/homelab/.env` (decrypted)
@@ -142,6 +146,7 @@ Print this document and store it in a safe place (fireproof safe, safety deposit
 ### Digital Backup
 
 You can also:
+
 1. Keep `disaster-recovery-backup.txt` on a USB drive
 2. Store in a password manager (1Password, Bitwarden)
 3. Email to yourself (encrypted)
@@ -149,6 +154,7 @@ You can also:
 ## 🔒 Security Best Practices
 
 ### DO ✅
+
 - Use a strong, unique passphrase for encryption
 - Store your passphrase in a password manager
 - Keep a physical backup of your passphrase
@@ -156,6 +162,7 @@ You can also:
 - Review `.gitignore` ensures `.env` is never committed
 
 ### DON'T ❌
+
 - Don't use a weak passphrase (no "password123")
 - Don't store passphrase in the repository
 - Don't commit unencrypted `.env` file
@@ -167,6 +174,7 @@ You can also:
 ### What is `age`?
 
 `age` is a simple, modern file encryption tool:
+
 - Easy to use (no GPG complexity)
 - Secure (ChaCha20-Poly1305 encryption)
 - Small (single binary)

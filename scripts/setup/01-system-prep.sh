@@ -2,7 +2,7 @@
 
 # System Preparation Script
 # Idempotent - can be run multiple times safely
-# Now includes DietPi systemd-logind fixes
+# Supports: Debian, DietPi
 
 set -e
 
@@ -50,6 +50,7 @@ install_essentials() {
         "gnupg"
         "lsb-release"
         "apt-transport-https"
+        "arping"
     )
     
     to_install=()
@@ -173,11 +174,11 @@ configure_timezone() {
 # Fix DietPi systemd-logind (critical for Podman)
 fix_dietpi_systemd() {
     if ! is_dietpi; then
-        log_info "Not DietPi, skipping systemd-logind fixes"
+        log_info "Standard Debian detected - skipping DietPi-specific fixes"
         return 0
     fi
     
-    log_info "Detected DietPi - applying systemd-logind fixes..."
+    log_info "DietPi detected - applying systemd-logind fixes..."
     
     # CRITICAL: Install D-Bus if not present
     if ! command -v dbus-daemon &> /dev/null; then
@@ -293,7 +294,7 @@ EOF
         echo ""
         log_info "After reconnecting, run:"
         echo ""
-        echo "  cd ~/test-homelab && ./setup.sh"
+        echo "  cd ~/homelab && ./setup.sh"
         echo ""
         log_info "The setup will automatically continue from where it left off."
         echo ""
@@ -334,7 +335,6 @@ install_macvlan_service() {
     # Check if the macvlan script exists in the repo
     if [ ! -f "$SCRIPT_DIR/scripts/systemd/setup-macvlan-routes.sh" ]; then
         log_warn "macvlan routes script not found, skipping installation"
-        log_info "This is normal for WSL2 or if not using macvlan networking"
         return 0
     fi
     
@@ -344,8 +344,11 @@ install_macvlan_service() {
     sudo cp "$SCRIPT_DIR/scripts/systemd/setup-macvlan-routes.sh" /usr/local/bin/
     sudo chmod +x /usr/local/bin/setup-macvlan-routes.sh
     
+    # Get current username
+    CURRENT_USER=$(whoami)
+    
     # Create systemd service file
-    sudo tee /etc/systemd/system/macvlan-routes.service > /dev/null << 'EOF'
+    sudo tee /etc/systemd/system/macvlan-routes.service > /dev/null << EOF
 [Unit]
 Description=Setup macvlan ARP routes for containers
 After=network-online.target podman.service
@@ -353,6 +356,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+User=${CURRENT_USER}
 ExecStart=/usr/local/bin/setup-macvlan-routes.sh
 RemainAfterExit=yes
 
@@ -373,14 +377,22 @@ main() {
     log_info "=== System Preparation ==="
     echo ""
     
+    # Detect OS type
+    if is_dietpi; then
+        log_info "Running on: DietPi"
+    else
+        log_info "Running on: Debian"
+    fi
+    echo ""
+    
     update_system
     install_essentials
     install_age
     configure_timezone
     verify_systemd
-    fix_dietpi_systemd  # This may exit and ask for re-login
+    fix_dietpi_systemd  # This may exit and ask for re-login on DietPi
     create_directories
-    install_macvlan_service  # Install macvlan routes service
+    install_macvlan_service
     
     echo ""
     log_info "System preparation complete!"
