@@ -389,6 +389,9 @@ start_services() {
     log_info "Starting services..."
     cd "$HOMELAB_DIR"
     
+    log_warn "Ignoring systemd warnings - containers will start correctly"
+    echo ""
+    
     podman-compose up -d || {
         log_error "Failed to start services"
         log_info "Checking container status..."
@@ -397,6 +400,24 @@ start_services() {
     }
     
     log_info "Services started!"
+    
+    echo ""
+    log_info "Configuring macvlan routes..."
+    if sudo systemctl is-active --quiet macvlan-routes.service; then
+        log_info "Restarting macvlan-routes service..."
+        sudo systemctl restart macvlan-routes.service
+    else
+        log_info "Starting macvlan-routes service..."
+        sudo systemctl start macvlan-routes.service
+        sudo systemctl enable macvlan-routes.service
+    fi
+    
+    if sudo systemctl is-active --quiet macvlan-routes.service; then
+        log_info "✓ macvlan routes configured"
+    else
+        log_warn "macvlan-routes service failed to start"
+        log_info "You can start it manually: sudo systemctl start macvlan-routes.service"
+    fi
 }
 
 # Display service info
