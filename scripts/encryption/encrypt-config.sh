@@ -21,7 +21,7 @@ log_error() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(dirname "$SCRIPT_DIR")"
+REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CONFIGS_DIR="$REPO_DIR/configs"
 
 # Check if age is installed
