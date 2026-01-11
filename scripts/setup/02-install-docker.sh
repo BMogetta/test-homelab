@@ -112,20 +112,34 @@ add_user_to_docker_group() {
     log_info "Adding user $current_user to docker group..."
     sudo usermod -aG docker $current_user
     
-    log_warn "=========================================="
-    log_warn "GROUP MEMBERSHIP UPDATED"
-    log_warn "=========================================="
+    log_info "✓ User added to docker group"
     echo ""
-    log_info "You need to log out and log back in for"
-    log_info "docker group membership to take effect."
-    echo ""
-    log_info "After reconnecting, run:"
-    echo ""
-    echo "  cd $(pwd) && ./setup.sh"
-    echo ""
-    log_info "The setup will automatically continue from where it left off."
-    echo ""
-    read -p "Press ENTER to continue (you'll need to re-login after this)..."
+    log_info "Activating docker group membership..."
+    
+    # Try to activate the group without logout
+    # This creates a new shell with the docker group active
+    if newgrp docker <<EOFGROUP 2>/dev/null
+docker ps >/dev/null 2>&1
+EOFGROUP
+    then
+        log_info "✓ Docker group activated successfully!"
+        log_info "You can now use docker commands without sudo"
+    else
+        log_warn "=========================================="
+        log_warn "PLEASE RE-LOGIN TO ACTIVATE DOCKER GROUP"
+        log_warn "=========================================="
+        echo ""
+        log_info "The docker group was added, but to activate it you need to:"
+        echo ""
+        echo "  1. Exit this SSH session: exit"
+        echo "  2. SSH back in"
+        echo "  3. Continue setup: cd $(pwd) && ./setup.sh"
+        echo ""
+        log_info "The setup will automatically continue from where it left off."
+        echo ""
+        read -p "Press ENTER to acknowledge..."
+        return 1
+    fi
 }
 
 # Enable and start Docker service
@@ -148,11 +162,23 @@ enable_docker_service() {
 test_docker() {
     log_info "Testing Docker installation..."
     
-    if docker run --rm hello-world &> /dev/null; then
-        log_info "✓ Docker test successful"
+    # Try without sudo first
+    if docker ps &> /dev/null; then
+        log_info "✓ Docker test successful (no sudo required)"
+        return 0
+    fi
+    
+    # If that fails, try with sudo
+    log_warn "Docker requires sudo (group membership not active yet)"
+    
+    if sudo docker ps &> /dev/null; then
+        log_info "✓ Docker test successful (with sudo)"
+        log_warn "After re-login, you won't need sudo for docker commands"
+        return 0
     else
-        log_warn "Docker test requires group membership refresh"
-        log_info "This will work after you log back in"
+        log_error "Docker test failed"
+        log_info "Check Docker service: sudo systemctl status docker"
+        return 1
     fi
 }
 
@@ -171,6 +197,12 @@ main() {
     
     echo ""
     add_user_to_docker_group
+    
+    # Check if we need to stop for re-login
+    if [ $? -ne 0 ]; then
+        log_warn "Setup paused - please re-login and run setup.sh again"
+        exit 0
+    fi
     
     echo ""
     test_docker
