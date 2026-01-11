@@ -23,21 +23,28 @@ sudo sysctl -w net.ipv4.conf.$IFACE.proxy_arp=1
 # Wait for containers to start
 sleep 20
 
-# Get current MACs from containers (skip empty lines)
-NGINX_MAC=$(podman inspect nginx-proxy-manager --format '{{range .NetworkSettings.Networks}}{{.MacAddress}}{{end}}' 2>/dev/null)
-PIHOLE_MAC=$(podman inspect pihole --format '{{range .NetworkSettings.Networks}}{{.MacAddress}}{{end}}' 2>/dev/null)
+# Array of containers and their IPs
+declare -A CONTAINERS=(
+    ["nginx-proxy-manager"]="192.168.0.200"
+    ["pihole"]="192.168.0.201"
+    ["unifi-controller"]="192.168.0.202"
+    ["uptime-kuma"]="192.168.0.203"
+    ["homeassistant"]="192.168.0.204"
+    ["stirling-pdf"]="192.168.0.205"
+    ["homarr"]="192.168.0.206"
+    ["dozzle"]="192.168.0.207"
+)
 
-# Add ARP entries if containers exist
-if [ ! -z "$NGINX_MAC" ]; then
-    sudo ip neigh add 192.168.100.200 lladdr $NGINX_MAC dev $IFACE 2>/dev/null || \
-    sudo ip neigh replace 192.168.100.200 lladdr $NGINX_MAC dev $IFACE
-    echo "Added ARP route for Nginx: 192.168.100.200 → $NGINX_MAC on $IFACE"
-fi
-
-if [ ! -z "$PIHOLE_MAC" ]; then
-    sudo ip neigh add 192.168.100.201 lladdr $PIHOLE_MAC dev $IFACE 2>/dev/null || \
-    sudo ip neigh replace 192.168.100.201 lladdr $PIHOLE_MAC dev $IFACE
-    echo "Added ARP route for Pi-hole: 192.168.100.201 → $PIHOLE_MAC on $IFACE"
-fi
+# Configure ARP routes for all containers
+for container in "${!CONTAINERS[@]}"; do
+    IP="${CONTAINERS[$container]}"
+    MAC=$(podman inspect "$container" --format '{{range .NetworkSettings.Networks}}{{.MacAddress}}{{end}}' 2>/dev/null)
+    
+    if [ ! -z "$MAC" ]; then
+        sudo ip neigh add "$IP" lladdr "$MAC" dev "$IFACE" 2>/dev/null || \
+        sudo ip neigh replace "$IP" lladdr "$MAC" dev "$IFACE"
+        echo "Added ARP route for $container: $IP → $MAC on $IFACE"
+    fi
+done
 
 exit 0
