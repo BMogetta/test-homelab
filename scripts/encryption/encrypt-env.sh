@@ -32,12 +32,12 @@ if ! command -v age &> /dev/null; then
 fi
 
 # Check if .env exists
-if [ ! -f ~/homelab/.env ]; then
-    log_error "~/homelab/.env not found"
+if [ ! -f /opt/homelab/.env ]; then
+    log_error "/opt/homelab/.env not found"
     echo ""
     echo "Make sure you've deployed services first:"
     echo "  cd ~/homelab-setup"
-    echo "  ./scripts/04-deploy-services.sh"
+    echo "  ./setup.sh"
     exit 1
 fi
 
@@ -48,18 +48,20 @@ log_warn "REMEMBER THIS PASSPHRASE - you'll need it for decryption!"
 echo ""
 
 # Encrypt the file
-age -p -o ~/homelab/.env.age ~/homelab/.env
+age -p -o /opt/homelab/.env.age /opt/homelab/.env
 
 if [ $? -eq 0 ]; then
     echo ""
-    log_info "✓ Successfully encrypted: ~/homelab/.env.age"
+    log_info "✓ Successfully encrypted: /opt/homelab/.env.age"
     echo ""
     log_info "Next steps:"
-    echo "  1. Add to git: git add ~/homelab/.env.age"
-    echo "  2. Commit: git commit -m 'Update encrypted environment'"
-    echo "  3. Push: git push"
+    echo "  1. Copy to repo: cp /opt/homelab/.env.age ~/your-repo/"
+    echo "  2. Add to git: git add .env.age"
+    echo "  3. Commit: git commit -m 'feat: update encrypted environment'"
+    echo "  4. Push: git push"
     echo ""
-    log_warn "NEVER commit ~/homelab/.env (unencrypted)"
+    log_warn "NEVER commit /opt/homelab/.env (unencrypted)"
+    log_warn "Add to .gitignore: echo '.env' >> .gitignore"
 else
     log_error "Encryption failed"
     exit 1

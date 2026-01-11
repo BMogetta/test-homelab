@@ -4,6 +4,7 @@
 # This script is idempotent and can be run multiple times safely
 # Uses checkpoints to track progress across reboots/re-logins
 # Supports: Debian, DietPi
+# Uses Docker + Portainer
 
 set -e
 
@@ -85,7 +86,7 @@ check_systemd() {
 main() {
     CURRENT_CHECKPOINT=$(get_checkpoint)
     
-    log_info "Starting Homelab Setup..."
+    log_info "Starting Homelab Setup (Docker + Portainer)..."
     log_info "Current checkpoint: $CURRENT_CHECKPOINT"
     echo ""
     
@@ -113,10 +114,11 @@ main() {
     # CHECKPOINT 1: Copy .env.age
     if [ "$CURRENT_CHECKPOINT" -lt 2 ]; then
         if [ -f "$SCRIPT_DIR/.env.age" ]; then
-            mkdir -p "$HOME/homelab"
-            if [ ! -f "$HOME/homelab/.env.age" ]; then
-                log_info "Copying .env.age to homelab directory..."
-                cp "$SCRIPT_DIR/.env.age" "$HOME/homelab/.env.age"
+            if [ ! -f "/opt/homelab/.env.age" ]; then
+                log_info "Copying .env.age to /opt/homelab directory..."
+                sudo mkdir -p /opt/homelab
+                sudo cp "$SCRIPT_DIR/.env.age" /opt/homelab/.env.age
+                sudo chown -R $USER:$USER /opt/homelab
             fi
         fi
         set_checkpoint 2
@@ -126,14 +128,14 @@ main() {
     
     # CHECKPOINT 2: Decrypt .env
     if [ "$CURRENT_CHECKPOINT" -lt 3 ]; then
-        if [ -f "$HOME/homelab/.env.age" ]; then
-            if [ ! -f "$HOME/homelab/.env" ]; then
+        if [ -f "/opt/homelab/.env.age" ]; then
+            if [ ! -f "/opt/homelab/.env" ]; then
                 echo ""
                 log_info "=========================================="
                 log_info "Encrypted environment file detected"
                 log_info "=========================================="
                 echo ""
-                log_info "Found: ~/homelab/.env.age"
+                log_info "Found: /opt/homelab/.env.age"
                 log_warn "Decryption is REQUIRED to continue"
                 echo ""
                 
@@ -143,7 +145,7 @@ main() {
                     bash "$decrypt_script"
                     
                     # Verify decryption succeeded
-                    if [ ! -f "$HOME/homelab/.env" ]; then
+                    if [ ! -f "/opt/homelab/.env" ]; then
                         log_error "Decryption failed or was cancelled"
                         log_error "Cannot continue without .env"
                         exit 1
@@ -155,7 +157,7 @@ main() {
             else
                 log_info "✓ .env already exists"
             fi
-        elif [ ! -f "$HOME/homelab/.env" ]; then
+        elif [ ! -f "/opt/homelab/.env" ]; then
             log_error "No .env.age or .env found"
             log_error "This repository requires encrypted credentials"
             exit 1
@@ -170,8 +172,8 @@ main() {
     # Run installation scripts in order
     scripts=(
         "setup/01-system-prep.sh:4"
-        "setup/02-install-podman.sh:5"
-        "setup/03-install-cockpit.sh:6"
+        "setup/02-install-docker.sh:5"
+        "setup/03-install-portainer.sh:6"
         "setup/04-deploy-services.sh:7"
     )
     
@@ -215,7 +217,7 @@ main() {
             log_info "These are optional backups of:"
             echo "  - Git configuration (user/email)"
             echo "  - SSH keys"
-            echo "  - Service customizations (Homarr, Nginx, Pi-hole)"
+            echo "  - Service customizations"
             echo ""
             read -p "Would you like to restore these configurations? (y/N): " restore_configs
             
@@ -245,21 +247,20 @@ main() {
     log_info "Homelab Setup Complete!"
     log_info "=========================================="
     echo ""
-    log_info "Services are now running. Access them at:"
+    log_info "Services are managed through Portainer:"
     echo ""
-    echo "  Homarr Dashboard:     http://localhost:7575"
-    echo "  Dozzle (Logs):        http://localhost:8888"
-    echo "  Cockpit:              https://localhost:9090"
+    echo "  Portainer Dashboard:  http://192.168.100.200:9000"
     echo ""
-    log_info "For service-specific IPs, check: ~/homelab/compose.yml"
+    log_info "All services have their own IPs on your network:"
+    echo "  Check: /opt/homelab/compose.yml for the full list"
     echo ""
-    log_info "To manage services:"
-    echo "  cd ~/homelab"
-    echo "  podman ps"
-    echo "  podman-compose logs -f"
-    echo "  podman-compose restart SERVICE_NAME"
+    log_info "To manually manage services:"
+    echo "  cd /opt/homelab"
+    echo "  docker compose ps"
+    echo "  docker compose logs -f"
+    echo "  docker compose restart SERVICE_NAME"
     echo ""
-    log_info "Configuration directory: ~/homelab"
+    log_info "Configuration directory: /opt/homelab"
     echo ""
     
     # Clear checkpoint on successful completion

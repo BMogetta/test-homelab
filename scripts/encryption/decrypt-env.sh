@@ -32,19 +32,19 @@ if ! command -v age &> /dev/null; then
 fi
 
 # Check if encrypted file exists
-if [ ! -f ~/homelab/.env.age ]; then
-    log_error "~/homelab/.env.age not found"
+if [ ! -f /opt/homelab/.env.age ]; then
+    log_error "/opt/homelab/.env.age not found"
     echo ""
     echo "This could mean:"
-    echo "  1. You haven't encrypted your .env yet (use ./scripts/encrypt-env.sh)"
+    echo "  1. You haven't encrypted your .env yet (use ./scripts/encryption/encrypt-env.sh)"
     echo "  2. The encrypted file wasn't committed to the repository"
-    echo "  3. You need to copy .env.age to ~/homelab/"
+    echo "  3. You need to copy .env.age to /opt/homelab/"
     exit 1
 fi
 
 # Check if .env already exists
-if [ -f ~/homelab/.env ]; then
-    log_warn "~/homelab/.env already exists"
+if [ -f /opt/homelab/.env ]; then
+    log_warn "/opt/homelab/.env already exists"
     read -p "Overwrite? (y/N): " response
     if [[ ! "$response" =~ ^[Yy]$ ]]; then
         log_info "Decryption cancelled"
@@ -58,19 +58,23 @@ log_warn "Enter the passphrase you used during encryption"
 echo ""
 
 # Decrypt the file
-age -d ~/homelab/.env.age > ~/homelab/.env
+age -d /opt/homelab/.env.age > /opt/homelab/.env
 
 if [ $? -eq 0 ]; then
+    # Set secure permissions
+    chmod 600 /opt/homelab/.env
+    
     echo ""
-    log_info "✓ Successfully decrypted: ~/homelab/.env"
+    log_info "✓ Successfully decrypted: /opt/homelab/.env"
+    log_info "✓ Permissions set to 600 (owner read/write only)"
     echo ""
     log_info "Your environment variables are ready!"
-    log_info "You can now start your services:"
-    echo "  cd ~/homelab"
-    echo "  podman-compose up -d"
+    log_info "You can now deploy your services via Portainer or CLI:"
+    echo "  Option 1: Access Portainer at http://192.168.100.200:9000"
+    echo "  Option 2: cd /opt/homelab && docker compose up -d"
 else
     log_error "Decryption failed"
     log_error "Make sure you entered the correct passphrase"
-    rm -f ~/homelab/.env  # Remove partial file
+    rm -f /opt/homelab/.env  # Remove partial file
     exit 1
 fi

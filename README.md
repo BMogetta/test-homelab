@@ -1,22 +1,42 @@
-# Test Homelab - Debian 12 + Podman
+# Homelab Setup - Docker + Portainer
 
-Complete self-hosted homelab setup using Debian 12 and Podman.
+Complete homelab setup for Raspberry Pi using Docker, Portainer, and macvlan networking.
 
-## Services Included
+## 🚀 Features
 
-- **UniFi Network Application** - Network controller
-- **Pi-hole** - DNS ad-blocker
-- **Nginx Proxy Manager** - Reverse proxy with SSL
-- **Uptime Kuma** - Uptime monitoring
-- **Home Assistant** - Home automation
-- **Stirling PDF** - PDF tools
-- **Homarr** - Modern dashboard
-- **Dozzle** - Container logs and monitoring
-- **Cockpit** - System management web UI
+- **Docker + Portainer**: Modern container management with web UI
+- **macvlan Networking**: Each service gets its own IP address on your network
+- **Automated Setup**: Idempotent scripts with checkpoint system
+- **Encrypted Secrets**: Age encryption for sensitive data
+- **Easy Management**: Deploy and manage services through Portainer
 
-## Quick Start
+## 📋 Services
 
-### For Debian / Raspberry Pi / DietPi
+All services run with their own IP addresses:
+
+| Service | IP | Ports | Description |
+| --------- | ----- | ------- | ------------- |
+| **Portainer** | 192.168.100.200 | 9000 | Container management UI |
+| **UniFi Controller** | 192.168.100.201 | 8443 | Network management |
+| **Nginx Proxy Manager** | 192.168.100.202 | 80, 443, 81 | Reverse proxy with SSL |
+| **Pi-hole** | 192.168.100.203 | 80, 53 | DNS ad blocker |
+| **Uptime Kuma** | 192.168.100.204 | 3001 | Uptime monitoring |
+| **Home Assistant** | 192.168.100.205 | 8123 | Home automation |
+| **Stirling PDF** | 192.168.100.206 | 8080 | PDF tools |
+| **Homarr** | 192.168.100.207 | 7575 | Dashboard |
+| **Dozzle** | 192.168.100.208 | 8080 | Container logs |
+
+> **Note**: These IPs are examples based on `192.168.100.x` subnet. The setup script will detect your network and adjust automatically.
+
+## 🔧 Prerequisites
+
+- Raspberry Pi (or any Debian-based system)
+- Ethernet connection (recommended for macvlan)
+- SSH access
+
+## 📥 Installation
+
+### 1. Clone the Repository
 
 ```bash
 sudo apt update && sudo apt install -y git && \
@@ -24,192 +44,271 @@ cd ~ && git clone https://github.com/BMogetta/test-homelab.git && \
 cd test-homelab && chmod +x setup.sh && ./setup.sh
 ```
 
-**⚠️ Important - Session Restart May Be Required:**
+The script will:
 
-If the setup detects it needs to configure systemd (common on DietPi), it will show:
+1. Detect your system (Debian/DietPi)
+2. Install essential tools
+3. Install Docker and Docker Compose
+4. Install Portainer with macvlan
+5. Create the docker-compose.yml file
+6. Configure ARP routes
+
+### 2. Deploy Services
+
+**Option A: Via Portainer (Recommended)**
+
+1. Access Portainer: `http://192.168.100.200:9000`
+2. Create admin account on first login
+3. Go to **Stacks** → **Add stack**
+4. Name it: `homelab`
+5. Upload `/opt/homelab/compose.yml` OR paste its contents
+6. Add environment variables from `/opt/homelab/.env`
+7. Click **Deploy the stack**
+
+**Option B: Via Command Line**
+
+```bash
+cd /opt/homelab
+docker compose up -d
+```
+
+### 4. Configure ARP Routes
+
+After deployment, ensure containers are accessible:
+
+```bash
+sudo systemctl restart macvlan-routes.service
+sudo systemctl enable macvlan-routes.service
+```
+
+## 🔐 Environment Variables
+
+Create a `.env` file in `/opt/homelab/` with:
+
+```bash
+# Timezone
+TZ=America/Argentina/Buenos_Aires
+
+# User IDs (get with: id -u / id -g)
+PUID=1000
+PGID=1000
+
+# Pi-hole
+PIHOLE_WEBPASSWORD=your_secure_password
+
+# MongoDB (for UniFi)
+MONGO_ROOT_PASS=your_root_password
+MONGO_USER=unifi
+MONGO_PASS=your_unifi_db_password
+MONGO_DBNAME=unifi
+```
+
+> **Encrypted Setup**: If you have `.env.age`, decrypt it with:
+>
+> ```bash
+> cd /opt/homelab
+> age --decrypt -o .env .env.age
+> ```
+
+## 📁 Directory Structure
+
+All service data is stored in `/opt`:
 
 ```sh
-==========================================
-SESSION RESTART REQUIRED
-==========================================
-
-Please run:
-  exit
-  # Then reconnect via SSH
-  ./setup.sh  # Resume setup from where it left off
+/opt/
+├── homelab/
+│   ├── compose.yml          # Docker Compose configuration
+│   ├── .env                 # Environment variables
+│   └── .env.age            # Encrypted environment (optional)
+├── portainer/
+│   └── data/
+├── unifi/
+│   ├── data/
+│   ├── mongodb/
+│   └── init-mongo.sh
+├── nginx-proxy-manager/
+│   ├── data/
+│   └── letsencrypt/
+├── pihole/
+│   ├── etc-pihole/
+│   └── etc-dnsmasq.d/
+├── uptime-kuma/
+│   └── data/
+├── homeassistant/
+│   └── config/
+├── stirling-pdf/
+│   ├── data/
+│   └── configs/
+└── homarr/
+    ├── configs/
+    ├── icons/
+    └── data/
 ```
 
-**When you see this:**
+## 🌐 Network Configuration
 
-1. Type `exit` to close your SSH session
-2. Reconnect via SSH to your device
-3. Run `./setup.sh` again - it will automatically continue from where it left off
+### macvlan Explained
 
-The setup will:
+macvlan gives each container its own IP address on your network, making them appear as separate devices to your router.
 
-- Install all dependencies (Podman, Cockpit, etc.)
-- Configure systemd-logind (may require session restart on DietPi)
-- Configure git (prompts for email/name)
-- Detect and decrypt `.env.age` (prompts for passphrase)
-- Deploy all services automatically
-- Remember progress across restarts (checkpoint system)
+**Advantages:**
 
-### For WSL2 (Testing Only)
+- No port conflicts
+- Easy access from any device
+- Better for services like UniFi that need network discovery
+- Clean separation of services
 
-**Important:** WSL2 is for testing only. For production, use Raspberry Pi or native Debian.
+**Limitation:**
+
+- The Raspberry Pi itself **cannot** access these IPs directly
+- Use another device (phone, laptop, desktop) to configure services
+- This is a Linux kernel limitation, not a bug
+
+### Accessing Services
+
+- **From other devices**: Just use the IP addresses (e.g., `http://192.168.100.200:9000`)
+- **From the Pi itself**: Not possible due to macvlan limitation
+- **DNS Configuration**: Set Pi-hole IP as DNS in your router to block ads network-wide
+
+## 🔧 Management
+
+### View Container Status
 
 ```bash
-sudo apt update && sudo apt install -y git && \
-cd ~ && git clone https://github.com/BMogetta/test-homelab.git && \
-cd test-homelab && chmod +x scripts/*.sh && ./scripts/wsl2-fixes.sh && \
-exit
+docker ps
 ```
 
-From PowerShell:
-
-```powershell
-wsl --shutdown
-wsl -d Debian
-```
+### View Logs
 
 ```bash
-# Now run setup
-cd ~/test-homelab && ./setup.sh
+# All containers
+docker compose -f /opt/homelab/compose.yml logs -f
+
+# Specific container
+docker logs -f nginx-proxy-manager
 ```
 
-**WSL2 Limitations:** See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for issues.
-
-## Service Access
-
-After deployment:
-
-| Service | URL | Notes |
-| --------- | ----- | ------- |
-| Homarr Dashboard | <http://localhost:7575> | Create admin on first run |
-| Dozzle (Logs) | <http://localhost:8888> | Real-time container logs |
-| Cockpit | <https://localhost:9090> | System management |
-| Nginx Proxy Manager | <http://localhost:81> | <admin@example.com> / changeme |
-| Pi-hole | <http://localhost:8080/admin> | Password in .env |
-| UniFi Controller | <https://localhost:8443> | Follow setup wizard |
-| Uptime Kuma | <http://localhost:3001> | Create admin on first run |
-| Home Assistant | <http://localhost:8123> | Follow setup wizard |
-| Stirling PDF | <http://localhost:8082> | Ready to use |
-
-## Configuration
-
-### Encrypted Environment Variables
-
-Your `.env.age` contains encrypted credentials. The setup script will prompt for the passphrase to decrypt it.
-
-To update credentials later:
+### Restart Services
 
 ```bash
-# Edit .env
-nano ~/homelab/.env
+# Via Portainer: Stacks → homelab → Restart
 
-# Re-encrypt
-./scripts/encrypt-env.sh
-
-# Commit changes
-git add .env.age
-git commit -m "chore: update credentials"
-git push
+# Via CLI:
+docker compose -f /opt/homelab/compose.yml restart
+docker compose -f /opt/homelab/compose.yml restart SERVICE_NAME
 ```
 
-### Optional Configuration Backups
-
-Backup your customizations (git config, SSH keys, service configs):
+### Stop All Services
 
 ```bash
-# After customizing your homelab
-./scripts/encrypt-config.sh
-
-# Commit
-git add configs/
-git commit -m "feat: add encrypted configurations"
-git push
+docker compose -f /opt/homelab/compose.yml down
 ```
 
-On next fresh install, these will be automatically restored.
-
-## Checkpoint System
-
-The setup script uses checkpoints to track progress. If interrupted (power loss, session restart, etc.), simply run `./setup.sh` again and it will continue from where it left off.
-
-View current checkpoint:
+### Start All Services
 
 ```bash
-cat ~/.homelab_setup_checkpoint
+docker compose -f /opt/homelab/compose.yml up -d
 ```
 
-Reset checkpoint (start fresh):
+## 🐛 Troubleshooting
+
+### Services not accessible from network
 
 ```bash
-rm ~/.homelab_setup_checkpoint
+# Check ARP routes
+sudo systemctl status macvlan-routes.service
+sudo systemctl restart macvlan-routes.service
+
+# Manually verify routes
+ip neigh show
 ```
 
-## Useful Commands
+### Container won't start
 
 ```bash
-# View running containers
-podman ps
+# Check logs
+docker logs CONTAINER_NAME
 
-# View logs
-cd ~/homelab
-podman-compose logs -f
-
-# Restart a service
-podman-compose restart SERVICE_NAME
-
-# Stop all services
-podman-compose down
-
-# Start all services
-podman-compose up -d
-
-# View setup progress
-cat ~/.homelab_setup_checkpoint
+# Check compose file syntax
+docker compose -f /opt/homelab/compose.yml config
 ```
 
-## Documentation
+### Can't access from Pi itself
 
-- [ENCRYPTION.md](./ENCRYPTION.md) - Detailed encryption guide
-- [SERVICES.md](./SERVICES.md) - Service-specific documentation
-- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Common issues and solutions
-- [configs/README.md](./configs/README.md) - Optional configs guide
+This is expected with macvlan. Use another device on your network.
 
-## Platform Support
+### UniFi not discovering devices
 
-- ✅ Raspberry Pi 5 (Debian 12 ARM64) - **Recommended with Ethernet**
-- ✅ DietPi (Raspberry Pi) - **Recommended with Ethernet**
-- ✅ Proxmox LXC (Debian 12)
-- ✅ Bare metal Debian 12
-- ⚠️  WSL2 (Testing only - has limitations)
+1. Ensure UniFi Controller is at `.201` (critical for L3 adoption)
+2. Check that macvlan routes are configured
+3. Verify ARP table: `ip neigh show`
 
-**Important:** For macvlan networking (used by Pi-hole and Nginx), **Ethernet connection is strongly recommended**. WiFi adapters often don't support multiple MAC addresses required for macvlan.
+## 📊 Monitoring
 
-## Troubleshooting
+- **Portainer**: Container stats, resource usage
+- **Dozzle**: Real-time logs from all containers
+- **Uptime Kuma**: Monitor service availability
 
-### "SESSION RESTART REQUIRED" message
+## 🔄 Updates
 
-This is normal on first-time setup, especially on DietPi. Just exit, reconnect, and run `./setup.sh` again.
+### Update Single Service
 
-### Systemd warnings during container operations
+Via Portainer:
 
-These warnings are normal and harmless:
+1. Go to **Containers**
+2. Select container
+3. Click **Recreate** → Enable **Pull latest image**
 
-```sh
-WARN[0000] Falling back to --cgroup-manager=cgroupfs
+Via CLI:
+
+```bash
+docker compose -f /opt/homelab/compose.yml pull SERVICE_NAME
+docker compose -f /opt/homelab/compose.yml up -d SERVICE_NAME
 ```
 
-The setup is configured to work correctly despite these warnings.
+### Update All Services
 
-### Setup script fails mid-way
+```bash
+docker compose -f /opt/homelab/compose.yml pull
+docker compose -f /opt/homelab/compose.yml up -d
+```
 
-Run `./setup.sh` again - it will resume from the last successful checkpoint.
+## 🔒 Security
 
-For more issues, see [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+- Use strong passwords in `.env`
+- Keep `.env` file permissions at `600`
+- Regularly update containers
+- Use Nginx Proxy Manager for SSL certificates
+- Consider setting up a firewall (UFW)
 
-## License
+## 🤝 Contributing
 
-MIT
+Feel free to open issues or submit pull requests!
+
+## 📝 License
+
+MIT License - See LICENSE file
+
+---
+
+## 🎯 Quick Start Checklist
+
+- [ ] Clone repository
+- [ ] Run `./setup.sh`
+- [ ] Wait for Docker installation (may need to re-login)
+- [ ] Access Portainer at `http://192.168.100.200:9000`
+- [ ] Create admin account in Portainer
+- [ ] Deploy stack via Portainer
+- [ ] Configure ARP routes: `sudo systemctl restart macvlan-routes.service`
+- [ ] Access services from phone/laptop (not from Pi)
+- [ ] Configure each service as needed
+
+## 📚 Additional Resources
+
+- [Docker Documentation](https://docs.docker.com/)
+- [Portainer Documentation](https://docs.portainer.io/)
+- [UniFi Network Application](https://help.ui.com/hc/en-us/categories/200320654-UniFi-Network-Application)
+- [Pi-hole Documentation](https://docs.pi-hole.net/)
+- [Nginx Proxy Manager](https://nginxproxymanager.com/)
+
+---

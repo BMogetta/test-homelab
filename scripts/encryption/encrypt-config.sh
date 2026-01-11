@@ -83,11 +83,11 @@ fi
 echo ""
 
 # Encrypt Homarr config
-if [ -d ~/homelab/homarr/configs ] && [ -n "$(ls -A ~/homelab/homarr/configs 2>/dev/null)" ]; then
+if [ -d /opt/homarr/configs ] && [ -n "$(ls -A /opt/homarr/configs 2>/dev/null)" ]; then
     read -p "Encrypt Homarr config? (Y/n): " encrypt_homarr
     if [[ ! "$encrypt_homarr" =~ ^[Nn]$ ]]; then
         log_info "Encrypting Homarr config..."
-        tar -czf /tmp/homarr-config.tar.gz -C ~/homelab/homarr configs
+        tar -czf /tmp/homarr-config.tar.gz -C /opt/homarr configs
         if age -p -o "$CONFIGS_DIR/homarr-config.age" /tmp/homarr-config.tar.gz; then
             log_info "✓ homarr-config.age created"
             ((encrypted_count++))
@@ -103,12 +103,12 @@ fi
 echo ""
 
 # Encrypt Nginx Proxy Manager data
-if [ -d ~/homelab/nginx-proxy-manager/data ] && [ -n "$(ls -A ~/homelab/nginx-proxy-manager/data 2>/dev/null)" ]; then
+if [ -d /opt/nginx-proxy-manager/data ] && [ -n "$(ls -A /opt/nginx-proxy-manager/data 2>/dev/null)" ]; then
     read -p "Encrypt Nginx Proxy Manager config? (Y/n): " encrypt_nginx
     if [[ ! "$encrypt_nginx" =~ ^[Nn]$ ]]; then
         log_info "Encrypting Nginx Proxy Manager config..."
         log_warn "This may take a moment for large configurations..."
-        tar -czf /tmp/nginx-config.tar.gz -C ~/homelab/nginx-proxy-manager data
+        tar -czf /tmp/nginx-config.tar.gz -C /opt/nginx-proxy-manager data
         if age -p -o "$CONFIGS_DIR/nginx-proxy-manager.age" /tmp/nginx-config.tar.gz; then
             log_info "✓ nginx-proxy-manager.age created"
             ((encrypted_count++))
@@ -124,11 +124,11 @@ fi
 echo ""
 
 # Encrypt Pi-hole config (custom lists, etc.)
-if [ -d ~/homelab/pihole/etc-pihole ] && [ -n "$(ls -A ~/homelab/pihole/etc-pihole 2>/dev/null)" ]; then
+if [ -d /opt/pihole/etc-pihole ] && [ -n "$(ls -A /opt/pihole/etc-pihole 2>/dev/null)" ]; then
     read -p "Encrypt Pi-hole custom config? (Y/n): " encrypt_pihole
     if [[ ! "$encrypt_pihole" =~ ^[Nn]$ ]]; then
         log_info "Encrypting Pi-hole config..."
-        tar -czf /tmp/pihole-config.tar.gz -C ~/homelab/pihole etc-pihole etc-dnsmasq.d
+        tar -czf /tmp/pihole-config.tar.gz -C /opt/pihole etc-pihole etc-dnsmasq.d
         if age -p -o "$CONFIGS_DIR/pihole-config.age" /tmp/pihole-config.tar.gz; then
             log_info "✓ pihole-config.age created"
             ((encrypted_count++))

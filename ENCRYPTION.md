@@ -183,15 +183,16 @@ You can also:
 
 ### File Locations
 
-```
+```sh
 homelab-setup/
 ├── .env.example          # Template (committed to git)
-├── scripts/
-│   ├── encrypt-env.sh    # Encryption script
-│   └── decrypt-env.sh    # Decryption script
-└── homelab/
-    ├── .env              # Actual credentials (NOT in git)
-    └── .env.age          # Encrypted (committed to git)
+└── scripts/
+    └──encryption/
+       ├── encrypt-env.sh    # Encryption script
+       └── decrypt-env.sh    # Decryption script
+/opt/homelab/
+├── .env              # Actual credentials (NOT in git)
+└── .env.age          # Encrypted (committed to git)
 ```
 
 ### .gitignore Rules
@@ -207,7 +208,7 @@ homelab-setup/
 A: There is no recovery. This is why physical backup is important.
 
 **Q: Can I change my passphrase?**
-A: Yes, just re-run `./scripts/encrypt-env.sh` with a new passphrase.
+A: Yes, just re-run `./scripts/encryption/encrypt-env.sh` with a new passphrase.
 
 **Q: Is it safe to put .env.age on GitHub?**
 A: Yes, as long as your passphrase is strong and not in the repository.
@@ -224,5 +225,4 @@ A: No, but it makes fresh installs easier. You clone the repo and decrypt instea
 ## 🔗 Related
 
 - [age documentation](https://age-encryption.org/)
-- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
 - [README.md](./README.md)

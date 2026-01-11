@@ -2,7 +2,6 @@
 
 # Decrypt Optional Configuration Files
 # Run this AFTER setup.sh to restore your customized configurations
-# Uses CONFIG_ENCRYPTION_KEY from .env for automatic decryption
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -149,12 +148,12 @@ if [ -f "$CONFIGS_DIR/homarr-config.age" ]; then
     if [[ ! "$restore_homarr" =~ ^[Nn]$ ]]; then
         log_info "Decrypting Homarr config..."
         
-        if [ ! -d ~/homelab/homarr ]; then
-            log_warn "~/homelab/homarr doesn't exist yet"
+        if [ ! -d /opt/homarr ]; then
+            log_warn "/opt/homarr doesn't exist yet"
             log_info "Run setup.sh first, then try again"
         else
             if age -d "$CONFIGS_DIR/homarr-config.age" > /tmp/homarr-restore.tar.gz; then
-                tar -xzf /tmp/homarr-restore.tar.gz -C ~/homelab/homarr/
+                tar -xzf /tmp/homarr-restore.tar.gz -C /opt/homarr/
                 rm -f /tmp/homarr-restore.tar.gz
                 log_info "✓ Homarr config restored"
                 ((restored_count++))
@@ -173,12 +172,12 @@ if [ -f "$CONFIGS_DIR/nginx-proxy-manager.age" ]; then
     if [[ ! "$restore_nginx" =~ ^[Nn]$ ]]; then
         log_info "Decrypting Nginx Proxy Manager config..."
         
-        if [ ! -d ~/homelab/nginx-proxy-manager ]; then
-            log_warn "~/homelab/nginx-proxy-manager doesn't exist yet"
+        if [ ! -d /opt/nginx-proxy-manager ]; then
+            log_warn "/opt/nginx-proxy-manager doesn't exist yet"
             log_info "Run setup.sh first, then try again"
         else
             if age -d "$CONFIGS_DIR/nginx-proxy-manager.age" > /tmp/nginx-restore.tar.gz; then
-                tar -xzf /tmp/nginx-restore.tar.gz -C ~/homelab/nginx-proxy-manager/
+                tar -xzf /tmp/nginx-restore.tar.gz -C /opt/nginx-proxy-manager/
                 rm -f /tmp/nginx-restore.tar.gz
                 log_info "✓ Nginx Proxy Manager config restored"
                 log_warn "Restart nginx-proxy-manager container for changes to take effect"
@@ -198,12 +197,12 @@ if [ -f "$CONFIGS_DIR/pihole-config.age" ]; then
     if [[ ! "$restore_pihole" =~ ^[Nn]$ ]]; then
         log_info "Decrypting Pi-hole config..."
         
-        if [ ! -d ~/homelab/pihole ]; then
-            log_warn "~/homelab/pihole doesn't exist yet"
+        if [ ! -d /opt/pihole ]; then
+            log_warn "/opt/pihole doesn't exist yet"
             log_info "Run setup.sh first, then try again"
         else
             if age -d "$CONFIGS_DIR/pihole-config.age" > /tmp/pihole-restore.tar.gz; then
-                tar -xzf /tmp/pihole-restore.tar.gz -C ~/homelab/pihole/
+                tar -xzf /tmp/pihole-restore.tar.gz -C /opt/pihole/
                 rm -f /tmp/pihole-restore.tar.gz
                 log_info "✓ Pi-hole config restored"
                 log_warn "Restart pihole container for changes to take effect"
@@ -228,12 +227,18 @@ echo ""
 if [ $restored_count -gt 0 ]; then
     log_info "Configurations have been restored"
     log_warn "You may need to restart some containers:"
-    echo "  cd ~/homelab"
-    echo "  podman-compose restart nginx-proxy-manager"
-    echo "  podman-compose restart pihole"
-    echo "  podman-compose restart homarr"
+    echo ""
+    echo "Via Portainer:"
+    echo "  1. Go to Containers"
+    echo "  2. Select container (nginx-proxy-manager, pihole, homarr)"
+    echo "  3. Click Restart"
+    echo ""
+    echo "Via CLI:"
+    echo "  cd /opt/homelab"
+    echo "  docker compose restart nginx-proxy-manager"
+    echo "  docker compose restart pihole"
+    echo "  docker compose restart homarr"
 else
     log_info "No configurations were restored"
     log_info "This is a fresh installation - configure services manually"
 fi
-
