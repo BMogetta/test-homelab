@@ -147,13 +147,8 @@ create_compose_file() {
     cat > "$HOMELAB_DIR/compose.yml" << EOF
 networks:
   macvlan_network:
-    driver: macvlan
-    driver_opts:
-      parent: ${NETWORK_INTERFACE}
-    ipam:
-      config:
-        - subnet: ${NETWORK_SUBNET}
-          gateway: ${NETWORK_GATEWAY}
+    external: true
+    name: portainer_macvlan
 
 services:
   # UniFi Network Application - MongoDB Database (MongoDB 7.0)
